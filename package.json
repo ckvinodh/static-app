@@ -1,0 +1,14 @@
+{
+  "name": "matalan-action-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Local backend for the Matalan action tracker",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "express": "^5.1.0"
+  }
+}

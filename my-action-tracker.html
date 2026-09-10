@@ -1,0 +1,2856 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>My Action Tracker</title>
+<style>
+  :root {
+    --primary: #0078D4;
+    --primary-dark: #005A9E;
+    --primary-soft: #DEECF9;
+    --line: rgba(0, 120, 212, 0.22);
+    --ink: #1B1A19;
+    --ink-soft: #605E5C;
+    --ink-faint: #8A8886;
+    --radius: 12px;
+    --shadow-sm: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04);
+    --shadow-md: 0 4px 16px rgba(0,120,212,.08), 0 1px 3px rgba(16,24,40,.06);
+    --shadow-lg: 0 24px 48px rgba(16,24,40,.18);
+    --red: #D13438;
+    --amber: #B87A00;
+    --green: #0B6A0B;
+    --violet: #6B4EBB;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--ink);
+    background: linear-gradient(160deg, #F3F2F1 0%, #FFF 45%, #EEF6FF 100%);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; border: none; background: none; }
+  .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  /* ---------- Shell ---------- */
+  .app { display: grid; grid-template-columns: 244px minmax(0, 1fr); height: 100vh; }
+
+  .sidebar {
+    border-right: 1px solid var(--line);
+    background: rgba(255,255,255,.75);
+    backdrop-filter: blur(12px);
+    padding: 18px 13px;
+    display: flex; flex-direction: column; gap: 20px;
+    overflow-y: auto;
+  }
+
+  .main { display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+
+  .workspace {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .list-pane { overflow-y: auto; border-right: 1px solid var(--line); padding: 10px; text-align: left; }
+  .detail-pane { overflow-y: auto; padding: 22px 26px 60px; background: rgba(255,255,255,.55); text-align: left; }
+  .workspace, .card, .card-body, .group-head { text-align: left; }
+
+  /* ---------- Sidebar ---------- */
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 5px; }
+
+  .brand-mark {
+    width: 36px; height: 36px; display: grid; place-items: center;
+    border-radius: 10px; color: #fff;
+    background: linear-gradient(135deg, var(--primary), #4CA6E8);
+    box-shadow: 0 4px 12px rgba(0,120,212,.32);
+  }
+
+  .brand-title { font-weight: 700; font-size: 13.5px; }
+  .brand-sub { font-size: 11px; color: var(--ink-faint); }
+
+  .nav-group-label {
+    display: flex; align-items: center;
+    padding: 0 8px 7px;
+    font-size: 10px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+
+  .nav-group-toggle {
+    display: flex; align-items: center; gap: 6px; width: 100%;
+    padding: 0; color: inherit; text-align: left;
+    font-size: inherit; font-weight: inherit; letter-spacing: inherit;
+    text-transform: inherit;
+  }
+
+  .nav-group-toggle svg { transition: transform .15s; }
+  .nav-group-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
+  .nav-group-actions { margin-left: auto; display: flex; align-items: center; }
+
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+
+  .nav-item, .person-btn, .project-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 8px 10px;
+    border-radius: 8px; color: var(--ink-soft);
+    text-align: left; font-size: 13px;
+    transition: background .15s, color .15s;
+  }
+
+  .nav-item:hover, .person-btn:hover, .project-btn:hover {
+    background: rgba(0,120,212,.06); color: var(--primary-dark);
+  }
+
+  .nav-item.active, .person-btn.active, .project-btn.active {
+    background: var(--primary-soft); color: var(--primary-dark); font-weight: 600;
+  }
+
+  .nav-item.active { box-shadow: inset 2px 0 0 var(--primary); }
+  .nav-item svg { flex-shrink: 0; }
+  .nav-label { flex: 1; min-width: 0; }
+
+  .pill {
+    min-width: 22px; padding: 1px 7px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-align: center;
+    background: rgba(0,0,0,.05); color: var(--ink-soft);
+  }
+
+  .nav-item.active .pill { background: #fff; color: var(--primary-dark); }
+  .pill.alert { background: #FDE7E9; color: var(--red); }
+  .person-btn .pill, .project-btn .pill { margin-left: auto; }
+  .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--primary); flex-shrink: 0; }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    border-bottom: 1px solid var(--line);
+    background: rgba(255,255,255,.9);
+    backdrop-filter: blur(12px);
+    padding: 14px 22px 11px;
+    flex-shrink: 0;
+  }
+
+  .topbar-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+  .subtitle { margin-top: 2px; font-size: 12px; color: var(--ink-faint); }
+  .topbar-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+  .toolbar { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; align-items: center; }
+
+  .scope { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(0,0,0,.05); gap: 2px; }
+
+  .scope button {
+    padding: 6px 14px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 600; color: var(--ink-soft); white-space: nowrap;
+  }
+
+  .scope button.on { background: #fff; color: var(--primary-dark); box-shadow: var(--shadow-sm); }
+
+  .search { position: relative; flex: 1 1 220px; min-width: 0; }
+  .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--ink-faint); pointer-events: none; }
+
+  .field {
+    height: 36px; width: 100%; padding: 0 12px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff;
+    outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+
+  .search .field { padding-left: 35px; }
+  .field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,120,212,.14); }
+  select.field { appearance: none; padding-right: 30px; cursor: pointer; }
+  .select-wrap { position: relative; }
+  .select-wrap svg { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-faint); pointer-events: none; }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 15px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; color: #fff; background: var(--primary);
+    box-shadow: 0 2px 8px rgba(0,120,212,.28); transition: background .15s;
+  }
+
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-primary.full { width: 100%; justify-content: center; margin-top: 8px; }
+
+  .btn-soft, .btn-ghost {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 36px; padding: 0 12px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff;
+    color: var(--ink-soft); font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  }
+
+  .btn-soft:hover, .btn-ghost:hover { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-soft); }
+  .btn-soft[disabled] { opacity: .6; cursor: default; }
+  .btn-ghost.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
+  .scan-meta { font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+  .spin { animation: spin .9s linear infinite; display: inline-flex; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .filter-bar {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 9px; padding: 9px;
+    border: 1px solid var(--line); border-radius: 10px; background: rgba(222,236,249,.4);
+  }
+
+  /* ---------- List pane ---------- */
+  .group-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 8px 7px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--ink-faint);
+  }
+
+  .count-chip {
+    padding: 0 7px; border-radius: 999px; background: rgba(0,0,0,.05);
+    font-size: 10.5px; font-weight: 700; color: var(--ink-soft);
+  }
+
+  .card {
+    display: flex; gap: 10px; align-items: flex-start;
+    width: 100%; text-align: left;
+    padding: 8px 9px; margin-bottom: 4px;
+    border: 1px solid var(--line); border-left: 5px solid var(--card-priority, var(--line)); border-radius: 10px;
+    background: #fff; box-shadow: var(--shadow-sm);
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+
+  .card.priority-Critical { --card-priority: var(--red); }
+  .card.priority-Medium { --card-priority: var(--amber); }
+  .card.priority-High { --card-priority: #7A4A20; }
+  .card.priority-Low { --card-priority: var(--green); }
+
+  .card:hover { border-color: var(--line); border-left-color: var(--card-priority, var(--line)); box-shadow: var(--shadow-md); }
+
+  .card.active {
+    border-color: var(--line);
+    border-left-color: var(--card-priority, var(--line));
+    background: var(--primary-soft);
+    box-shadow: var(--shadow-md);
+  }
+
+  .card-body { min-width: 0; flex: 1; }
+  .card-title { font-size: 12px; font-weight: 600; line-height: 1.3; }
+  .card.done .card-title { color: var(--ink-faint); text-decoration: line-through; }
+  .card-meta { margin-top: 2px; font-size: 10px; color: var(--ink-faint); }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; align-items: center; }
+  .today-star { display: grid; place-items: center; padding: 3px; color: var(--ink-faint); border-radius: 5px; }
+  .today-star:hover, .today-star.active { color: #B87A00; background: #FFF4E5; }
+
+  .check { margin-top: 1px; flex-shrink: 0; color: var(--ink-faint); display: grid; }
+  .check:hover { color: var(--green); }
+  .check.done { color: var(--green); }
+
+  .prio-dot { width: 7px; height: 7px; border-radius: 999px; flex-shrink: 0; }
+  .prio-High { background: var(--red); }
+  .prio-Medium { background: var(--amber); }
+  .prio-Low { background: #9AA0A6; }
+
+  .status {
+    display: inline-flex; padding: 2px 9px; border-radius: 999px;
+    border: 1px solid; font-size: 10.5px; font-weight: 600; white-space: nowrap;
+    min-width: 82px; justify-content: center; text-align: center;
+  }
+
+  .status.Pending,
+  .status.Open { border-color: #A9D3F2; background: #EFF8FF; color: var(--primary-dark); }
+  .status.Waiting { border-color: #D6CCF2; background: #F4F0FF; color: var(--violet); }
+  .status.Overdue { border-color: #F3B7B9; background: #FDE7E9; color: var(--red); }
+  .status.Completed { border-color: #A7DFA7; background: #DFF6DD; color: var(--green); }
+
+  .tag-new {
+    padding: 1px 6px; border-radius: 4px; background: var(--primary);
+    color: #fff; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  }
+
+  .note-count {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10.5px; color: var(--primary-dark); font-weight: 600;
+  }
+
+  .avatar {
+    display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0;
+    border-radius: 999px; font-size: 10px; font-weight: 700; color: #fff; background: var(--primary);
+    line-height: 1; text-align: center;
+  }
+
+  .avatar.me { background: linear-gradient(135deg, var(--primary), #4CA6E8); }
+  .avatar.unassigned { background: #C8C6C4; color: #605E5C; }
+  .avatar.sm { width: 18px; height: 18px; font-size: 10px !important; }
+
+  /* ---------- Detail pane ---------- */
+  .detail-empty {
+    height: 100%; display: grid; place-content: center; text-align: center;
+    color: var(--ink-faint); gap: 8px;
+  }
+
+  .detail-head { display: flex; align-items: flex-start; gap: 12px; }
+  .detail-title { font-size: 19px; font-weight: 700; line-height: 1.35; letter-spacing: -.01em; }
+  .detail-title.done { color: var(--ink-faint); text-decoration: line-through; }
+  .detail-sub { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+
+  .d-section { margin-top: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+
+  .d-label {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+
+  .context {
+    display: flex; align-items: flex-start; gap: 11px;
+    padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: linear-gradient(90deg, rgba(222,236,249,.85), rgba(255,255,255,.9));
+  }
+
+  .context-icon {
+    display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0;
+    border-radius: 9px; background: var(--primary); color: #fff;
+  }
+
+  .context-when { font-size: 13px; font-weight: 700; }
+  .context-where { margin-top: 2px; font-size: 12px; color: var(--ink-soft); }
+  .context-who { margin-top: 3px; font-size: 11.5px; color: var(--ink-faint); }
+
+  .trigger {
+    margin-top: 9px; padding: 10px 13px; border-radius: 8px;
+    border: 1px solid #FDE7A9; background: #FFF8E6;
+    font-size: 12.5px; line-height: 1.6; color: #6B4E00;
+  }
+
+  .trigger strong { color: #8A5300; }
+
+  .quote {
+    border-left: 3px solid var(--primary); border-radius: 0 8px 8px 0;
+    background: #fff; padding: 11px 14px;
+    font-size: 13px; line-height: 1.65; color: var(--ink-soft);
+  }
+
+  .quote p { margin: 0 0 8px; }
+  .quote p:last-child { margin-bottom: 0; }
+  .quote .speaker { font-weight: 700; color: var(--primary-dark); }
+
+  .steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .steps li { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.55; color: var(--ink-soft); }
+
+  .steps li .n {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 19px; height: 19px; margin-top: 1px; border-radius: 999px;
+    background: var(--primary-soft); color: var(--primary-dark);
+    font-size: 10.5px; font-weight: 700;
+  }
+
+  .source-card { border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 13px 14px; }
+  .source-head { display: flex; align-items: flex-start; gap: 10px; }
+
+  .source-icon {
+    display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0;
+    border-radius: 8px; background: var(--primary-soft); color: var(--primary-dark);
+  }
+
+  .source-subject { font-size: 13px; font-weight: 700; }
+  .source-meta { margin-top: 2px; font-size: 11.5px; color: var(--ink-faint); }
+
+  .btn-open {
+    display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+    margin-left: auto; padding: 7px 13px; border-radius: 8px;
+    border: 1px solid var(--primary); background: var(--primary-soft);
+    color: var(--primary-dark); font-size: 12px; font-weight: 600;
+    text-decoration: none; white-space: nowrap;
+  }
+
+  .btn-open:hover { background: var(--primary); color: #fff; }
+
+  .atts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; padding-top: 11px; border-top: 1px dashed var(--line); }
+
+  .att {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px;
+    border-radius: 7px; border: 1px solid var(--line); background: #FAFAFA;
+    font-size: 11.5px; color: var(--ink-soft); text-decoration: none;
+  }
+
+  .att:hover { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-dark); }
+  .att .sz { color: var(--ink-faint); font-size: 10.5px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+
+  .chip {
+    padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line);
+    background: #fff; font-size: 11px; color: var(--ink-soft);
+  }
+
+  .detail-sub .chip.project-pill { border-color: #A9D3F2; background: #EFF8FF; color: #005A9E; }
+  .detail-sub .chip.priority-pill { border-color: #F3C27B; background: #FFF4E5; color: #9A5700; }
+  .detail-sub .chip.priority-pill.priority-Critical { border-color: #F3B7B9; background: #FDE7E9; color: #D13438; }
+  .detail-sub .chip.priority-pill.priority-High { border-color: #C99A6A; background: #F8EFE6; color: #7A4A20; }
+  .detail-sub .chip.priority-pill.priority-Medium { border-color: #F3C27B; background: #FFF4E5; color: #9A5700; }
+  .detail-sub .chip.priority-pill.priority-Low { border-color: #A7DFA7; background: #DFF6DD; color: #0B6A0B; }
+  .detail-sub .chip.due-pill { border-color: #D6CCF2; background: #F4F0FF; color: #6B4EBB; }
+  .detail-sub .chip.owner-pill { border-color: #A7DFA7; background: #DFF6DD; color: #0B6A0B; }
+  .detail-sub .status.Pending { border-color: #A9D3F2; background: #EFF8FF; color: #005A9E; }
+  .detail-sub .status.Waiting { border-color: #F3C27B; background: #FFF4E5; color: #9A5700; }
+  .detail-sub .status.Completed { border-color: #A7DFA7; background: #DFF6DD; color: #0B6A0B; }
+  .detail-sub .status.Overdue { border-color: #F3B7B9; background: #FDE7E9; color: #D13438; }
+
+  .matched {
+    display: inline-flex; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+    background: #DFF6DD; color: var(--green); font-size: 10px; font-weight: 700;
+  }
+
+  /* ---------- Notes ---------- */
+  .note-box {
+    border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 12px;
+  }
+
+  .note-input {
+    width: 100%; min-height: 76px; resize: vertical; padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: 8px; outline: none;
+    font-size: 13px; line-height: 1.55;
+  }
+
+  .rich-toolbar {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;
+  }
+
+  .rich-toolbar button {
+    min-width: 30px; height: 28px; padding: 0 8px;
+    border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; color: var(--ink-soft); font-weight: 700;
+  }
+
+  .rich-toolbar button:hover { border-color: var(--primary); color: var(--primary-dark); background: var(--primary-soft); }
+  .rich-color {
+    height: 28px; border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; color: var(--ink-soft); padding: 0 7px; font-weight: 700;
+  }
+  .rich-editor { min-height: 88px; overflow-y: auto; }
+  .rich-editor:empty::before { content: attr(data-placeholder); color: var(--ink-faint); }
+  .rich-editor ul, .rich-editor ol, .note-text ul, .note-text ol { margin: 6px 0 6px 22px; padding: 0; }
+  .rich-editor li, .note-text li { margin: 2px 0; }
+
+  .note-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,120,212,.14); }
+  .note-actions { display: flex; align-items: center; gap: 9px; margin-top: 9px; flex-wrap: wrap; }
+  .note-hint { font-size: 11px; color: var(--ink-faint); }
+
+  .note {
+    display: flex; gap: 10px; padding: 11px 0;
+    border-bottom: 1px solid rgba(0,0,0,.06);
+  }
+
+  .note:last-child { border-bottom: none; }
+  .note-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--primary); margin-top: 6px; flex-shrink: 0; }
+  .note-when { font-size: 11px; font-weight: 700; color: var(--primary-dark); }
+  .note-text { margin-top: 3px; font-size: 13px; line-height: 1.6; color: var(--ink-soft); white-space: normal; }
+
+  .note-del {
+    margin-left: auto; color: var(--ink-faint); opacity: 0; transition: opacity .15s;
+    align-self: flex-start;
+  }
+
+  .note:hover .note-del { opacity: 1; }
+  .note-del:hover { color: var(--red); }
+
+  /* Product typography: keep the whole tracker consistent and compact. */
+  body, body * { font-family: Calibri, "Segoe UI", sans-serif !important; font-size: 14px !important; }
+  svg { font-size: initial !important; }
+
+  .subtask-list { display: flex; flex-direction: column; gap: 7px; }
+  .subtask-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .subtask-row { cursor: pointer; }
+  .subtask-row[draggable="true"] { cursor: grab; }
+  .subtask-row.drag-over { border-color: var(--primary); background: var(--primary-soft); }
+  .subtask-row:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .subtask-row input[type="checkbox"] { margin-top: 3px; accent-color: var(--primary); }
+  .subtask-row.done span { color: var(--ink-faint); text-decoration: line-through; }
+  .subtask-add { display: flex; gap: 8px; margin-top: 9px; }
+  .subtask-add input { flex: 1; min-width: 0; }
+  .subtask-owner { margin-left: auto; font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+
+  .checklist-section { margin-top: 14px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+  .checklist-section summary { padding: 10px 12px; cursor: pointer; color: var(--primary-dark); font-size: 12px; font-weight: 700; }
+  .checklist-section summary::marker { color: var(--primary); }
+  .checklist-body { padding: 0 12px 12px; }
+  .checklist-body .subtask-add { margin-top: 8px; }
+
+  .checklist-overview { overflow-y: auto; padding: 24px 28px 60px; background: rgba(255,255,255,.55); }
+  .checklist-overview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+  .checklist-overview-head h2 { margin: 0; font-size: 20px; }
+  .checklist-overview-head p { margin: 4px 0 0; font-size: 13px; color: var(--ink-faint); }
+  .checklist-project { margin-bottom: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; overflow: hidden; }
+  .checklist-project summary { display: flex; align-items: center; gap: 9px; padding: 12px 14px; cursor: pointer; list-style: none; background: var(--primary-soft); }
+  .checklist-project summary::-webkit-details-marker { display: none; }
+  .checklist-project summary .count-chip { margin-left: auto; }
+  .checklist-items { padding: 5px 10px 8px; }
+  .overview-item { display: flex; align-items: flex-start; gap: 9px; padding: 9px 5px; border-bottom: 1px solid rgba(0,0,0,.05); }
+  .overview-item:last-child { border-bottom: none; }
+  .overview-item > input { margin-top: 3px; accent-color: var(--primary); }
+  .overview-item.done .overview-subtask { color: var(--ink-faint); text-decoration: line-through; }
+  .overview-item-main { flex: 1; min-width: 0; text-align: left; }
+  .overview-subtask { display: block; font-size: 13px; font-weight: 600; }
+  .overview-parent { display: block; margin-top: 2px; font-size: 11px; color: var(--ink-faint); }
+  .checklist-empty { padding: 50px 20px; text-align: center; color: var(--ink-faint); }
+
+  .capture-choice { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 14px; }
+  .capture-choice button { padding: 12px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; text-align: left; }
+  .capture-choice button:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .capture-choice strong { display: block; font-size: 13px; }
+  .capture-choice span { display: block; margin-top: 3px; font-size: 11px; color: var(--ink-faint); }
+
+  .controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-top: 20px; padding-top: 16px; border-top: 1px dashed var(--line);
+  }
+
+  .controls label { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+
+  /* ---------- Modals / toasts ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+    padding: 16px; background: rgba(27,26,25,.45); backdrop-filter: blur(3px);
+  }
+
+  .modal { width: 100%; max-width: 460px; border-radius: 14px; background: #fff; box-shadow: var(--shadow-lg); padding: 22px; }
+  .modal.lg { max-width: 620px; }
+  .modal-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .modal-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+  .icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--ink-soft); }
+  .icon-btn:hover { background: rgba(0,0,0,.06); }
+  .form { display: flex; flex-direction: column; gap: 11px; }
+  .form label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+  .settings-row {
+    display: flex !important; align-items: center; justify-content: space-between; gap: 14px;
+    margin: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(222,236,249,.45);
+  }
+  .settings-row span { display: flex; flex-direction: column; gap: 2px; }
+  .settings-row strong { color: var(--primary-dark); }
+  .settings-row small { color: var(--ink-faint); font-size: 11px; font-weight: 400; }
+  .settings-row input { width: 18px; height: 18px; accent-color: var(--primary); }
+  .err { margin-top: 4px; color: var(--red); font-size: 12px; }
+
+  .row-item {
+    display: flex; align-items: center; gap: 9px; padding: 8px 10px; margin-bottom: 7px;
+    border: 1px solid var(--line); border-radius: 9px; background: #fff;
+  }
+
+  .row-item .field { height: 34px; flex: 1; }
+  .row-item .icon-btn { width: 30px; height: 30px; }
+
+  .drop {
+    border: 2px dashed var(--line); border-radius: 12px; padding: 26px 20px;
+    text-align: center; background: rgba(222,236,249,.35); cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+
+  .drop:hover, .drop.over { border-color: var(--primary); background: var(--primary-soft); }
+  .drop h4 { margin: 10px 0 4px; font-size: 14px; }
+  .drop p { margin: 0; font-size: 12px; color: var(--ink-faint); }
+
+  .preview { max-height: 250px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 4px; margin-top: 12px; }
+  .preview-row { display: flex; align-items: flex-start; gap: 9px; padding: 9px 10px; border-bottom: 1px solid rgba(0,0,0,.05); }
+  .preview-row:last-child { border-bottom: none; }
+  .preview-row input[type=checkbox] { margin-top: 3px; width: 15px; height: 15px; accent-color: var(--primary); }
+  .preview-title { font-size: 12.5px; font-weight: 600; }
+  .preview-meta { margin-top: 2px; font-size: 11px; color: var(--ink-faint); }
+
+  .hint { margin-top: 10px; padding: 9px 12px; border-radius: 8px; background: rgba(222,236,249,.6); font-size: 11.5px; color: var(--ink-soft); }
+
+  .toast-wrap { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 80; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .toast { display: flex; align-items: center; gap: 9px; padding: 11px 18px; border-radius: 10px; background: #1B1A19; color: #fff; font-size: 13px; box-shadow: var(--shadow-lg); animation: rise .22s ease-out; }
+  .toast.good { background: var(--green); }
+  .toast.warn { background: #8A5300; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+  /* ---------- Dark theme: Outlook / Microsoft 365 inspired ---------- */
+  body.dark-mode {
+    --primary: #4DA3FF;
+    --primary-dark: #9CCBFF;
+    --primary-soft: rgba(77,163,255,.16);
+    --line: rgba(148,163,184,.28);
+    --ink: #F8FAFC;
+    --ink-soft: #D7DEE8;
+    --ink-faint: #9CA8B8;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
+    --shadow-md: 0 8px 24px rgba(0,0,0,.35);
+    --shadow-lg: 0 24px 52px rgba(0,0,0,.55);
+    color: var(--ink);
+    background: linear-gradient(160deg, #111827 0%, #151B26 48%, #0F172A 100%);
+  }
+
+  body.dark-mode .sidebar,
+  body.dark-mode .topbar,
+  body.dark-mode .detail-pane,
+  body.dark-mode .checklist-overview {
+    background: rgba(17,24,39,.86);
+    border-color: var(--line);
+  }
+
+  body.dark-mode .list-pane { border-color: var(--line); }
+  body.dark-mode .card,
+  body.dark-mode .modal,
+  body.dark-mode .source-card,
+  body.dark-mode .quote,
+  body.dark-mode .trigger,
+  body.dark-mode .subtask-row,
+  body.dark-mode .checklist-section,
+  body.dark-mode .checklist-project,
+  body.dark-mode .row-item,
+  body.dark-mode .note,
+  body.dark-mode .drop,
+  body.dark-mode .preview {
+    background: #1F2937;
+    border-color: var(--line);
+    color: var(--ink);
+  }
+
+  body.dark-mode .card.active { background: rgba(77,163,255,.12); }
+  body.dark-mode .card { border-left-color: var(--card-priority, var(--line)); }
+  body.dark-mode .card:hover { background: #243244; }
+  body.dark-mode .field,
+  body.dark-mode .note-input,
+  body.dark-mode .rich-editor {
+    background: #111827;
+    border-color: var(--line);
+    color: #FFFFFF;
+    caret-color: #FFFFFF;
+  }
+
+  body.dark-mode .field::placeholder,
+  body.dark-mode .rich-editor:empty::before { color: #9CA8B8; }
+  body.dark-mode .btn-primary,
+  body.dark-mode .btn-soft,
+  body.dark-mode .btn-ghost,
+  body.dark-mode .scope button,
+  body.dark-mode .rich-toolbar button,
+  body.dark-mode .rich-color {
+    background: rgba(77,163,255,.14);
+    border-color: rgba(77,163,255,.38);
+    color: #9CCBFF;
+  }
+
+  body.dark-mode .btn-primary { background: #0F6CBD; color: #FFFFFF; }
+  body.dark-mode .btn-primary:hover,
+  body.dark-mode .btn-soft:hover,
+  body.dark-mode .btn-ghost:hover,
+  body.dark-mode .scope button:hover,
+  body.dark-mode .rich-toolbar button:hover {
+    background: rgba(77,163,255,.24);
+    border-color: #4DA3FF;
+    color: #D7ECFF;
+  }
+
+  body.dark-mode .scope { background: rgba(77,163,255,.10); }
+  body.dark-mode .scope button.on,
+  body.dark-mode .nav-item.active,
+  body.dark-mode .person-btn.active,
+  body.dark-mode .project-btn.active,
+  body.dark-mode .btn-ghost.on {
+    background: rgba(77,163,255,.20);
+    color: #D7ECFF;
+  }
+
+  body.dark-mode .pill,
+  body.dark-mode .count-chip,
+  body.dark-mode .nav-item.active .pill,
+  body.dark-mode .person-btn .pill,
+  body.dark-mode .project-btn .pill {
+    background: rgba(77,163,255,.18);
+    border: 1px solid rgba(77,163,255,.38);
+    color: #9CCBFF;
+  }
+
+  body.dark-mode .pill.alert { background: rgba(209,52,56,.22); border-color: rgba(248,113,113,.48); color: #FCA5A5; }
+  body.dark-mode .detail-sub .chip.project-pill { border-color: #38BDF8; background: rgba(56,189,248,.14); color: #BAE6FD; }
+  body.dark-mode .detail-sub .chip.priority-pill { border-color: #C084FC; background: rgba(192,132,252,.14); color: #E9D5FF; }
+  body.dark-mode .detail-sub .chip.priority-pill.priority-Critical { border-color: #EF4444; background: rgba(239,68,68,.16); color: #FCA5A5; }
+  body.dark-mode .detail-sub .chip.priority-pill.priority-High { border-color: #C08457; background: rgba(122,74,32,.28); color: #F1C08E; }
+  body.dark-mode .detail-sub .chip.priority-pill.priority-Medium { border-color: #F59E0B; background: rgba(245,158,11,.16); color: #FCD34D; }
+  body.dark-mode .detail-sub .chip.priority-pill.priority-Low { border-color: #22C55E; background: rgba(34,197,94,.16); color: #BBF7D0; }
+  body.dark-mode .detail-sub .chip.due-pill { border-color: #94A3B8; background: rgba(148,163,184,.16); color: #E2E8F0; }
+  body.dark-mode .detail-sub .chip.owner-pill { border-color: #D6A84F; background: rgba(214,168,79,.16); color: #FDE68A; }
+  body.dark-mode .detail-sub .status.Pending { border-color: #4DA3FF; background: rgba(77,163,255,.16); color: #BFDBFE; }
+  body.dark-mode .detail-sub .status.Waiting { border-color: #F59E0B; background: rgba(245,158,11,.16); color: #FCD34D; }
+  body.dark-mode .detail-sub .status.Completed { border-color: #22C55E; background: rgba(34,197,94,.16); color: #BBF7D0; }
+  body.dark-mode .detail-sub .status.Overdue { border-color: #EF4444; background: rgba(239,68,68,.16); color: #FCA5A5; }
+  body.dark-mode .note-when,
+  body.dark-mode .nav-group-label button,
+  body.dark-mode .settings-row strong { color: #9CCBFF; }
+  body.dark-mode .hint { background: rgba(77,163,255,.10); color: #D7DEE8; }
+  body.dark-mode .overlay { background: rgba(3,7,18,.72); }
+  body.dark-mode .toast { background: #0F172A; border: 1px solid var(--line); }
+
+  .back-btn { display: none; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1180px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+
+  @media (max-width: 980px) {
+    .workspace { grid-template-columns: 1fr; }
+    .list-pane { border-right: none; }
+    .detail-pane {
+      position: fixed; inset: 0; z-index: 40; background: #fff;
+      transform: translateX(100%); transition: transform .22s ease;
+    }
+    .detail-pane.open { transform: translateX(0); }
+    .back-btn { display: inline-flex; }
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* ==================================================================
+   Reference data
+================================================================== */
+const TODAY = new Date().toISOString().slice(0, 10);
+const ME = "Me";
+const STORE_KEY = "matalan-action-tracker-manual-v3";
+
+/* First names only - taken from the meeting notes.
+   Use People > MANAGE to set the correct names for your team. */
+let people = [
+  { name: "Me",         aliases: ["me", "i", "myself"] },
+  { name: "Himanshi",   aliases: ["himanshi"] },
+  { name: "Steve",      aliases: ["steve"] },
+  { name: "Amirah",     aliases: ["amirah"] },
+  { name: "Unassigned", aliases: ["unassigned", "tbc", "unknown"] }
+];
+
+let projects = ["MAT2548 PSO", "Mac Printing"];
+
+const ownerNames = () => people.map(p => p.name).sort((a, b) =>
+  a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : 0);
+
+const SECTIONS = [
+  { key: "Today",     label: "Today",     ico: "clock" },
+  { key: "Pending",   label: "Pending",   ico: "list"  },
+  { key: "Waiting",   label: "Waiting",   ico: "clock" },
+  { key: "Overdue",   label: "Overdue",   ico: "alert" },
+  { key: "Completed", label: "Completed", ico: "check" }
+];
+
+const SCOPES = [
+  { key: "Mine", label: "My actions" },
+  { key: "Team", label: "Team" },
+  { key: "All",  label: "Everyone" }
+];
+
+const DAY_OPTIONS = ["7", "14", "30", "90", "180", "365", "All"];
+const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+
+/* ==================================================================
+   Icons
+================================================================== */
+const icon = {
+  list:    svg('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
+  inbox:   svg('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'),
+  clock:   svg('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'),
+  calendar: svg('<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
+  alert:   svg('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>'),
+  check:   svg('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>'),
+  circle:  svg('<circle cx="12" cy="12" r="10"/>', 20),
+  checked: svg('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>', 20),
+  caret:   svg('<path d="m6 9 6 6 6-6"/>', 14),
+  back:    svg('<path d="m15 18-6-6 6-6"/>', 18),
+  search:  svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', 15),
+  sliders: svg('<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>', 15),
+  plus:    svg('<path d="M12 5v14M5 12h14"/>', 16),
+  star:    svg('<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/>', 16),
+  refresh: svg('<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>', 14),
+  close:   svg('<path d="M18 6 6 18M6 6l12 12"/>', 18),
+  gear:    svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.31.49 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-1.02 0-1.37.69-1.51 1Z"/>', 16),
+  mail:    svg('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>', 15),
+  video:   svg('<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>', 15),
+  notes:   svg('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5M8 13h8M8 17h5"/>', 15),
+  clip:    svg('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 13),
+  ext:     svg('<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>', 13),
+  step:    svg('<path d="m5 12 5 5L20 7"/>', 14),
+  people:  svg('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>', 13),
+  upload:  svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>', 14),
+  trash:   svg('<path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>', 15),
+  file:    svg('<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v5h5"/>', 30),
+  pen:     svg('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>', 14),
+  empty:   svg('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>', 36)
+};
+
+function svg(inner, size) {
+  const s = size || 16;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+}
+
+/* ==================================================================
+   Seed data
+   Titles and first names come from the original notes. The discussion
+   text, steps, email subjects and attachments are illustrative.
+================================================================== */
+const seedTasks = [
+  {
+    id: 1, title: "Coordinate the change for UPD and PSS deployment",
+    details: "Ask Himanshi to raise the required change and coordinate the phased rollout.",
+    project: "MAT2548 PSO", owner: ME, source: "Meeting transcript",
+    sourceName: "Approach for MAC Devices", created: "2026-09-04", due: "2026-09-11",
+    status: "Open", priority: "High", isNew: true, notes: [],
+    discussion: [
+      { speaker: "Steve", text: "We can't push UPD and PSS together without a change record - last time it went out unannounced and the service desk got hit." },
+      { speaker: "Himanshi", text: "I can raise it, but I need the device scope and the rollout window before I can submit." },
+      { speaker: "You", text: "I'll pull the device list together and come back with the phasing so you can raise it this week." }
+    ],
+    steps: [
+      "Pull the target device list for UPD and PSS from Intune.",
+      "Agree the phased rollout windows with Retail Ops.",
+      "Send the scope and windows to Himanshi so she can raise the change.",
+      "Confirm the change reference once submitted."
+    ],
+    sourceRef: {
+      kind: "meeting", title: "Approach for MAC Devices", when: "2026-09-04T10:00",
+      attendees: ["Steve", "Himanshi", "Amirah"],
+      link: "https://teams.microsoft.com/l/meetup-join/placeholder-mac-devices",
+      linkLabel: "Open transcript"
+    }
+  },
+  {
+    id: 2, title: "Start the phased UPD and PSS rollout",
+    details: "Begin the agreed rollout after change approval and coordinate delivery across the relevant devices.",
+    project: "MAT2548 PSO", owner: ME, source: "Meeting notes",
+    sourceName: "Approach for the Rollout", created: "2026-09-04", due: "2026-09-14",
+    status: "Open", priority: "High", isNew: true, notes: [],
+    discussion: [
+      { speaker: "Steve", text: "Once the change lands we start with the pilot ring, not the full estate." },
+      { speaker: "You", text: "Agreed - pilot first, then DC, then stores, with a checkpoint between each ring." }
+    ],
+    steps: [
+      "Wait for change approval before any deployment.",
+      "Deploy to the pilot ring and hold for 48 hours.",
+      "Review pilot results before promoting to the next ring.",
+      "Report progress at the weekly PSO call."
+    ],
+    sourceRef: {
+      kind: "meeting", title: "Approach for the Rollout", when: "2026-09-04T11:30",
+      attendees: ["Steve", "Amirah"],
+      link: "https://teams.microsoft.com/l/meetup-join/placeholder-rollout",
+      linkLabel: "Open notes"
+    }
+  },
+  {
+    id: 3, title: "Confirm the Secure Print Entra group",
+    details: "Investigate the correct group or user source for secure-print membership and targeted deployment.",
+    project: "MAT2548 PSO", owner: ME, source: "Email",
+    sourceName: "RE: Secure Print - group membership", created: "2026-09-03", due: "",
+    status: "Open", priority: "Medium", isNew: true, notes: [],
+    discussion: [
+      { speaker: "Amirah", text: "Which Entra group is actually driving secure print? I can see two that look similar and I don't want to target the wrong one." },
+      { speaker: "HP (Pharos)", text: "Membership should come from a single security group. Attached is the group mapping we were given at PoC - please confirm it still matches." }
+    ],
+    steps: [
+      "Open the attached group mapping and compare against Entra.",
+      "Identify which group is authoritative for secure print.",
+      "Confirm back to Amirah so targeting can be finalised.",
+      "Document the decision in the MAT2548 notes."
+    ],
+    sourceRef: {
+      kind: "email", subject: "RE: Secure Print - group membership",
+      from: "Amirah", to: "You, HP Support", when: "2026-09-03T16:42",
+      link: "https://outlook.office.com/mail/deeplink/read/PLACEHOLDER-MESSAGE-ID",
+      linkLabel: "Open in Outlook",
+      attachments: [
+        { name: "SecurePrint_Group_Mapping.xlsx", size: "184 KB", link: "https://outlook.office.com/mail/deeplink/attachment/PLACEHOLDER-1" },
+        { name: "PoC_Membership_Notes.pdf", size: "62 KB", link: "https://outlook.office.com/mail/deeplink/attachment/PLACEHOLDER-2" }
+      ]
+    }
+  },
+  {
+    id: 4, title: "Validate the Mac Print Scout package",
+    details: "Check the Mac Print Scout package and associated secret or encryption files from the Secure Print portal.",
+    project: "Mac Printing", owner: ME, source: "Meeting transcript",
+    sourceName: "Approach for MAC Devices", created: "2026-09-04", due: "",
+    status: "Open", priority: "High", isNew: true, notes: [],
+    discussion: [
+      { speaker: "Steve", text: "The Mac side needs the installer plus the customer secret and Setup.ini - they have to sit together or the install comes out unconfigured." },
+      { speaker: "You", text: "I'll validate the package and work out how we wrap it for Intune, since Intune only takes a single file." }
+    ],
+    steps: [
+      "Verify MacPrintScoutInstaller.pkg, CustomerSecret.dat and Setup.ini are the correct production set.",
+      "Confirm the version with HP before packaging.",
+      "Wrap the three files into a single deployable package.",
+      "Check whether a Developer ID Installer certificate is available for signing."
+    ],
+    sourceRef: {
+      kind: "meeting", title: "Approach for MAC Devices", when: "2026-09-04T10:00",
+      attendees: ["Steve", "Himanshi", "Amirah"],
+      link: "https://teams.microsoft.com/l/meetup-join/placeholder-mac-devices",
+      linkLabel: "Open transcript"
+    }
+  },
+  {
+    id: 5, title: "Package and deploy the Z9 plotter driver",
+    details: "After validation, coordinate packaging and deployment of the separate Z9 driver to the design team.",
+    project: "MAT2548 PSO", owner: ME, source: "Email",
+    sourceName: "Z9 plotter - driver package", created: "2026-09-02", due: "2026-09-21",
+    status: "Waiting", priority: "High", isNew: false, notes: [],
+    discussion: [
+      { speaker: "Design team", text: "The Z9 is the only plotter we use for print-ready artwork - it can't go through the standard driver." },
+      { speaker: "You", text: "Understood, it needs its own package. I'll handle it separately once the main rollout is validated." }
+    ],
+    steps: [
+      "Wait for the main UPD and PSS validation to complete.",
+      "Package the Z9 driver from the attached vendor bundle.",
+      "Test with one design team machine before wider release.",
+      "Deploy to the design team group only."
+    ],
+    sourceRef: {
+      kind: "email", subject: "Z9 plotter - driver package",
+      from: "Design Team", to: "You", when: "2026-09-02T09:15",
+      link: "https://outlook.office.com/mail/deeplink/read/PLACEHOLDER-Z9",
+      linkLabel: "Open in Outlook",
+      attachments: [
+        { name: "HP_DesignJet_Z9_Driver_v3.2.zip", size: "48.6 MB", link: "https://outlook.office.com/mail/deeplink/attachment/PLACEHOLDER-Z9-1" }
+      ]
+    }
+  },
+  {
+    id: 6, title: "Complete printer mapping validation",
+    details: "Complete printer-mapping testing and validation with Steve and Amirah.",
+    project: "MAT2548 PSO", owner: ME, source: "Meeting notes",
+    sourceName: "Approach for the Rollout", created: "2026-09-04", due: "",
+    status: "Open", priority: "Medium", isNew: false, notes: [],
+    discussion: [
+      { speaker: "Amirah", text: "Mapping looked right for the DC but we never finished the store list." },
+      { speaker: "Steve", text: "Let's finish validation before the pilot, otherwise users get pointed at the wrong queue." }
+    ],
+    steps: [
+      "Complete the outstanding store printer mappings.",
+      "Validate each mapping with Steve and Amirah.",
+      "Record any exceptions in the printer list.",
+      "Sign off mapping before pilot begins."
+    ],
+    sourceRef: {
+      kind: "meeting", title: "Approach for the Rollout", when: "2026-09-04T11:30",
+      attendees: ["Steve", "Amirah"],
+      link: "https://teams.microsoft.com/l/meetup-join/placeholder-rollout",
+      linkLabel: "Open notes"
+    }
+  },
+  {
+    id: 7, title: "Confirm the WebJet Admin scan-to-email template",
+    details: "Confirm the implementation approach and deployment timing for pilot users.",
+    project: "MAT2548 PSO", owner: ME, source: "Meeting notes",
+    sourceName: "Approach for the Rollout", created: "2026-09-04", due: "",
+    status: "Open", priority: "Medium", isNew: false, notes: [],
+    discussion: [],
+    steps: [
+      "Review the scan-to-email template in WebJet Admin.",
+      "Confirm the SMTP and authentication settings.",
+      "Agree whether pilot users receive it at launch.",
+      "Feed the decision back into the rollout plan."
+    ],
+    sourceRef: {
+      kind: "meeting", title: "Approach for the Rollout", when: "2026-09-04T11:30",
+      attendees: [],
+      link: "https://teams.microsoft.com/l/meetup-join/placeholder-rollout",
+      linkLabel: "Open notes"
+    }
+  }
+];
+
+/* ==================================================================
+   State + persistence
+================================================================== */
+const state = {
+  tasks: [],
+  section: "All",
+  priority: "All",
+  darkMode: false,
+  showChecklist: false,
+  ownerScope: "Mine",
+  ownerFilter: null,
+  days: "30",
+  project: "All projects",
+  source: "All sources",
+  query: "",
+  selected: null,
+  noteDraft: "",
+  showNoteInput: false,
+  draggingSubtask: null,
+  showFilters: false,
+  showForm: false,
+  showProjects: false,
+  showPeople: false,
+  showSettings: false,
+  showUpload: false,
+  showEmail: false,
+  showContext: null,
+  showSubtask: null,
+  navGroups: { views: true, priorities: true, people: true, projects: true },
+  parsed: null,
+  toasts: [],
+  formError: "",
+  storageOk: true,
+  draft: { title: "", details: "", project: "", owner: ME, due: "", priority: "Medium", initialUpdate: "", subtasks: "" },
+  emailDraft: { subject: "", from: "", to: "", received: "", body: "", attachment: "", title: "", nextStep: "", project: "", owner: ME, due: "", priority: "High" }
+};
+
+function save() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      tasks: state.tasks, people, projects, darkMode: state.darkMode
+    }));
+  } catch (err) {
+    state.storageOk = false;
+  }
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (Array.isArray(data.tasks) && data.tasks.length) {
+      state.tasks = data.tasks.map(t => ({
+        ...t,
+        notes: t.notes || [],
+        subtasks: (t.subtasks || []).map(s => typeof s === "string" ? { text: s, done: false, owner: t.owner, due: "", notes: [], checklist: [] } : { ...s, notes: s.notes || [], checklist: s.checklist || [] }),
+        checklist: (t.checklist || []).map(s => typeof s === "string" ? { text: s, done: false } : s)
+      }));
+    }
+    if (Array.isArray(data.people) && data.people.length) people = data.people;
+    if (Array.isArray(data.projects) && data.projects.length) projects = data.projects;
+    state.darkMode = Boolean(data.darkMode);
+  } catch (err) {
+    state.storageOk = false;
+  }
+}
+
+function resetAll() {
+  if (!confirm("Reset all actions, notes, people and projects back to the starting data?")) return;
+  try { localStorage.removeItem(STORE_KEY); } catch (err) { /* ignore */ }
+  location.reload();
+}
+
+/* ==================================================================
+   Helpers
+================================================================== */
+const esc = v => String(v).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const effectiveStatus = t => {
+  if (t.status === "Completed") return "Completed";
+  if (t.due && t.due < TODAY) return "Overdue";
+  return t.status === "Open" ? "Pending" : (t.status || "Pending");
+};
+
+const initials = o =>
+  o === "Unassigned" ? "?" : String(o || "?").trim().charAt(0).toUpperCase();
+
+const avatarClass = o =>
+  o === ME ? "avatar me" : o === "Unassigned" ? "avatar unassigned" : "avatar";
+
+const formatDate = v => new Date(v + "T00:00:00")
+  .toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+
+function titleCase(v) {
+  return v.replace(/\w\S*/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function resolveName(raw, attendees) {
+  if (!raw) return "Unassigned";
+  const key = String(raw).trim().toLowerCase().replace(/[^a-z\s.]/g, "");
+  if (!key) return "Unassigned";
+  if (["i", "me", "you", "myself"].includes(key)) return ME;
+
+  if (attendees && attendees.length) {
+    const hit = attendees.find(a => {
+      const an = a.toLowerCase();
+      return an === key || an.split(" ")[0] === key.split(" ")[0];
+    });
+    if (hit) {
+      const known = people.find(p =>
+        p.name.toLowerCase() === hit.toLowerCase() || p.aliases.includes(hit.toLowerCase()));
+      return known ? known.name : hit;
+    }
+  }
+
+  const known = people.find(p =>
+    p.name.toLowerCase() === key || p.aliases.includes(key) ||
+    p.name.toLowerCase().split(" ")[0] === key.split(" ")[0]);
+
+  return known ? known.name : titleCase(raw.trim());
+}
+
+function addPerson(name) {
+  const clean = titleCase(String(name).trim());
+  if (!clean) return null;
+  const found = people.find(p =>
+    p.name.toLowerCase() === clean.toLowerCase() || p.aliases.includes(clean.toLowerCase()));
+  if (found) return found.name;
+  people.push({ name: clean, aliases: [clean.toLowerCase(), clean.split(" ")[0].toLowerCase()] });
+  return clean;
+}
+
+function longStamp(value) {
+  const d = new Date(value);
+  if (isNaN(d)) return String(value);
+  const day = d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const diff = Math.floor((new Date(TODAY) - new Date(String(value).slice(0, 10))) / 86400000);
+  const rel = diff === 0 ? "today" : diff === 1 ? "yesterday" : diff > 1 ? diff + " days ago" : "";
+  return "Discussed " + day + " at " + time + (rel ? " (" + rel + ")" : "");
+}
+
+function shortStamp(value) {
+  const d = new Date(value);
+  if (isNaN(d)) return "";
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " +
+         d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+function whenLabel(task) {
+  const w = task.sourceRef && task.sourceRef.when;
+  return w && shortStamp(w) ? shortStamp(w) : task.source;
+}
+
+function inOwnerScope(t) {
+  if (state.ownerFilter) return t.owner === state.ownerFilter;
+  if (state.ownerScope === "Mine") return t.owner === ME;
+  if (state.ownerScope === "Team") return t.owner !== ME;
+  return true;
+}
+
+function isTodayBucket(t) {
+  return t.due === TODAY && effectiveStatus(t) === "Pending";
+}
+
+function isPendingBucket(t) {
+  return effectiveStatus(t) === "Pending" && t.due !== TODAY;
+}
+
+function getCounts(list) {
+  return {
+    All: list.length,
+    New: list.filter(t => t.isNew && effectiveStatus(t) !== "Completed").length,
+    Today: list.filter(isTodayBucket).length,
+    Pending: list.filter(isPendingBucket).length,
+    Waiting: list.filter(t => effectiveStatus(t) === "Waiting").length,
+    Overdue: list.filter(t => effectiveStatus(t) === "Overdue").length,
+    Completed: list.filter(t => effectiveStatus(t) === "Completed").length
+  };
+}
+
+function getPriorityCounts(list) {
+  return Object.fromEntries(PRIORITIES.map(priority => [
+    priority, list.filter(t => (t.priority || "Medium") === priority).length
+  ]));
+}
+
+function getVisible() {
+  const q = state.query.toLowerCase();
+  return state.tasks.filter(t => {
+    if (!inOwnerScope(t)) return false;
+    const s = effectiveStatus(t);
+    const sec =
+      state.section === "New"       ? t.isNew && s !== "Completed" :
+      state.section === "Today"     ? isTodayBucket(t) :
+      state.section === "Pending"   ? isPendingBucket(t) :
+      state.section === "Waiting"   ? s === "Waiting" :
+      state.section === "Overdue"   ? s === "Overdue" :
+      state.section === "Completed" ? s === "Completed" : true;
+
+    const priority = state.priority === "All" || (t.priority || "Medium") === state.priority;
+
+    const proj = state.project === "All projects" || t.project === state.project;
+    const src = state.source === "All sources" || t.source === state.source;
+    const age = state.days === "All" || !t.created ||
+      Math.floor((new Date(TODAY) - new Date(t.created)) / 86400000) <= Number(state.days);
+    const text = [t.title, t.details, t.project, t.source, t.sourceName, t.owner,
+      ...(t.notes || []).map(n => n.text)].join(" ").toLowerCase();
+
+    return sec && priority && proj && src && age && text.includes(q);
+  });
+}
+
+function toast(message, kind) {
+  const id = Date.now() + Math.random();
+  state.toasts.push({ id, message, kind: kind || "" });
+  render();
+  setTimeout(() => {
+    state.toasts = state.toasts.filter(t => t.id !== id);
+    render();
+  }, 3400);
+}
+
+/* ==================================================================
+   Transcript parsing
+================================================================== */
+const EXPLICIT = /^\s*(?:action|todo|to-do|ai)\s*[:\-]\s*(.+)$/i;
+const ASSIGNED = /^(.+?)\s+(?:will|to|should|needs? to|is going to)\s+(.+)$/i;
+const COMMIT = /\b(i'?ll|i will|let me|i'?m going to)\b/i;
+
+function parseTranscript(text, fileName) {
+  const speakers = new Set();
+  const utterances = [];
+
+  text.split(/\r?\n/).forEach(raw => {
+    const line = raw.trim();
+    if (!line || /^WEBVTT/i.test(line) || /^\d+$/.test(line) || /-->/.test(line)) return;
+
+    const vtt = line.match(/^<v\s+([^>]+)>(.*?)(?:<\/v>)?$/i);
+    const colon = line.match(/^([A-Z][A-Za-z.'\- ]{1,40}?):\s+(.*)$/);
+
+    if (vtt) { speakers.add(vtt[1].trim()); utterances.push({ speaker: vtt[1].trim(), text: vtt[2].trim() }); }
+    else if (colon) { speakers.add(colon[1].trim()); utterances.push({ speaker: colon[1].trim(), text: colon[2].trim() }); }
+    else utterances.push({ speaker: null, text: line });
+  });
+
+  const attendees = [...speakers];
+  const found = [];
+
+  utterances.forEach((u, i) => {
+    const text = u.text;
+    if (text.length < 12) return;
+
+    let owner = null, title = null;
+    const explicit = text.match(EXPLICIT);
+
+    if (explicit) {
+      title = explicit[1].trim();
+      const who = title.match(/^([A-Za-z.'\- ]{2,30}?)\s+(?:to|will|should)\s+(.+)$/i);
+      if (who) { owner = resolveName(who[1], attendees); title = who[2].trim(); }
+      else owner = u.speaker ? resolveName(u.speaker, attendees) : ME;
+    } else if (COMMIT.test(text)) {
+      const m = text.match(COMMIT);
+      const after = text.slice(m.index + m[0].length).trim();
+      if (after.length > 8) {
+        title = after.replace(/^(and|then|also)\s+/i, "");
+        owner = u.speaker ? resolveName(u.speaker, attendees) : ME;
+      }
+    } else {
+      const a = text.match(ASSIGNED);
+      if (a && a[1].split(/\s+/).length <= 4 && a[2].length > 8) {
+        const cand = resolveName(a[1], attendees);
+        if (cand !== "Unassigned" && ownerNames().includes(cand)) { owner = cand; title = a[2].trim(); }
+      }
+    }
+
+    if (!title) return;
+    title = title.replace(/\s+/g, " ").replace(/[.,;]+$/, "");
+    if (title.length > 120) title = title.slice(0, 117) + "...";
+    if (title.length < 10) return;
+
+    const context = utterances.slice(Math.max(0, i - 1), i + 2)
+      .filter(x => x.speaker)
+      .map(x => ({ speaker: resolveName(x.speaker, attendees), text: x.text }));
+
+    found.push({
+      include: true,
+      title: title[0].toUpperCase() + title.slice(1),
+      owner: owner || ME,
+      fromAttendee: attendees.some(a => a.toLowerCase() === String(owner || "").toLowerCase()),
+      details: text,
+      discussion: context.length ? context : [{ speaker: owner || ME, text }],
+      steps: [],
+      source: "Uploaded transcript",
+      sourceName: fileName,
+      priority: "Medium",
+      sourceRef: {
+        kind: "meeting", title: fileName,
+        when: new Date().toISOString().slice(0, 16),
+        attendees, link: "#", linkLabel: "Uploaded file"
+      }
+    });
+  });
+
+  const seen = new Set();
+  const unique = found.filter(f => {
+    const k = f.title.toLowerCase().slice(0, 45);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  unique.forEach(f => { if (f.owner && f.owner !== ME) addPerson(f.owner); });
+  return { actions: unique.slice(0, 25), attendees, fileName };
+}
+
+/* ==================================================================
+   Render
+================================================================== */
+function render() {
+  const scoped = state.tasks.filter(inOwnerScope);
+  const counts = getCounts(scoped);
+  const priorityCounts = getPriorityCounts(scoped);
+  const visible = getVisible();
+  const projectOptions = ["All projects", ...new Set([...projects, ...state.tasks.map(t => t.project)])];
+  const sources = ["All sources", ...new Set(state.tasks.map(t => t.source))];
+
+  const openByOwner = o => state.tasks.filter(t =>
+    t.owner === o && effectiveStatus(t) !== "Completed").length;
+
+  const scopeCounts = {
+    Mine: state.tasks.filter(t => t.owner === ME && effectiveStatus(t) !== "Completed").length,
+    Team: state.tasks.filter(t => t.owner !== ME && effectiveStatus(t) !== "Completed").length,
+    All: state.tasks.filter(t => effectiveStatus(t) !== "Completed").length
+  };
+
+  const grouped = visible.reduce((acc, t) => {
+    (acc[t.project] = acc[t.project] || []).push(t);
+    return acc;
+  }, {});
+
+  const selected = state.tasks.find(t => t.id === state.selected);
+  const heading = state.section;
+  const scopeLabel = state.ownerFilter
+    ? (state.ownerFilter === ME ? "Me" : state.ownerFilter)
+    : (SCOPES.find(s => s.key === state.ownerScope) || {}).label;
+
+  document.body.classList.toggle("dark-mode", state.darkMode);
+
+  document.getElementById("root").innerHTML = `
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">${icon.list}</div>
+          <div>
+            <div class="brand-title">Action Tracker</div>
+            <div class="brand-sub">Personal work queue</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="nav-group-label">
+            <button class="nav-group-toggle" data-group-toggle="views" aria-expanded="${state.navGroups.views}">
+              ${icon.caret}<span>Views</span>
+            </button>
+          </div>
+          ${state.navGroups.views ? `<nav class="nav">
+            <button class="nav-item ${state.section === "All" ? "active" : ""}" data-section="All">
+              ${icon.list}
+              <span class="nav-label">All</span>
+              <span class="pill">${counts.All}</span>
+            </button>
+            ${SECTIONS.map(s => `
+              <button class="nav-item ${state.section === s.key ? "active" : ""}" data-section="${s.key}">
+                ${icon[s.ico]}
+                <span class="nav-label">${s.label}</span>
+                <span class="pill ${s.key === "Overdue" && counts.Overdue ? "alert" : ""}">${counts[s.key]}</span>
+              </button>`).join("")}
+          </nav>` : ""}
+        </div>
+
+        <div>
+          <div class="nav-group-label">
+            <button class="nav-group-toggle" data-group-toggle="priorities" aria-expanded="${state.navGroups.priorities}">
+              ${icon.caret}<span>Priority</span>
+            </button>
+          </div>
+          ${state.navGroups.priorities ? `<nav class="nav">
+            <button class="nav-item ${state.priority === "All" ? "active" : ""}" data-priority="All">
+              ${icon.list}<span class="nav-label">All</span><span class="pill">${counts.All}</span>
+            </button>
+            ${PRIORITIES.map(priority => `
+              <button class="nav-item ${state.priority === priority ? "active" : ""}" data-priority="${priority}">
+                <span class="dot"></span><span class="nav-label">${priority}</span><span class="pill">${priorityCounts[priority]}</span>
+              </button>`).join("")}
+          </nav>` : ""}
+        </div>
+
+        <div>
+          <div class="nav-group-label">
+            <button class="nav-group-toggle" data-group-toggle="people" aria-expanded="${state.navGroups.people}">
+              ${icon.caret}<span>People</span>
+            </button>
+            <span class="nav-group-actions"><button data-act="manage-people" title="Manage people" aria-label="Manage people" style="color:var(--primary);font-weight:700">+</button></span>
+          </div>
+          ${state.navGroups.people ? `<div class="nav">
+            <button class="person-btn ${!state.ownerFilter && state.ownerScope === "All" ? "active" : ""}" data-owner-all>
+              <span class="avatar sm">A</span>
+              <span class="truncate">All</span>
+              <span class="pill">${scopeCounts.All}</span>
+            </button>
+            ${ownerNames().map(o => `
+              <button class="person-btn ${state.ownerFilter === o ? "active" : ""}" data-owner-filter="${esc(o)}">
+                <span class="${avatarClass(o)} sm">${initials(o)}</span>
+                <span class="truncate">${o === ME ? "Me" : esc(o)}</span>
+                <span class="pill">${openByOwner(o)}</span>
+              </button>`).join("")}
+          </div>` : ""}
+        </div>
+
+        <div>
+          <div class="nav-group-label">
+            <button class="nav-group-toggle" data-group-toggle="projects" aria-expanded="${state.navGroups.projects}">
+              ${icon.caret}<span>Projects</span>
+            </button>
+            <span class="nav-group-actions"><button data-act="manage-projects" title="Manage projects" aria-label="Manage projects" style="color:var(--primary);font-weight:700">+</button></span>
+          </div>
+          ${state.navGroups.projects ? `<div class="nav">
+            <button class="project-btn ${state.project === "All projects" ? "active" : ""}" data-project-all>
+              <span class="dot"></span>
+              <span class="truncate">All</span>
+            </button>
+            ${projects.map(p => `
+              <button class="project-btn ${state.project === p ? "active" : ""}" data-project="${esc(p)}" title="${esc(p)}">
+                <span class="dot"></span>
+                <span class="truncate">${esc(p)}</span>
+              </button>`).join("")}
+          </div>` : ""}
+        </div>
+
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <div class="topbar-row">
+            <div>
+              <h1>${heading} actions</h1>
+              <div class="subtitle">${esc(scopeLabel)} &middot; ${visible.length} action${visible.length === 1 ? "" : "s"}</div>
+            </div>
+            <div class="topbar-actions">
+              <button class="icon-btn" data-act="open-settings" title="Settings" aria-label="Settings">${icon.gear}</button>
+              <button class="btn-primary" data-act="open-form">${icon.plus} Create request</button>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <div class="scope">
+              ${SCOPES.map(s => `
+                <button class="${!state.ownerFilter && state.ownerScope === s.key ? "on" : ""}" data-scope="${s.key}">
+                  ${s.label} <span style="opacity:.6">${scopeCounts[s.key]}</span>
+                </button>`).join("")}
+            </div>
+
+            <label class="search">
+              <span class="sr-only">Search actions</span>
+              ${icon.search}
+              <input class="field" id="search" type="search" value="${esc(state.query)}"
+                     placeholder="Search actions, notes, people" />
+            </label>
+
+            <div class="select-wrap">
+              <label class="sr-only" for="days">Date range</label>
+              <select class="field" id="days" style="width:132px">
+                ${DAY_OPTIONS.map(v => `<option value="${v}" ${state.days === v ? "selected" : ""}>${v === "All" ? "All history" : v + " days"}</option>`).join("")}
+              </select>
+              ${icon.caret}
+            </div>
+
+            ${state.ownerFilter ? `<button class="btn-ghost on" data-act="clear-owner">Showing ${esc(state.ownerFilter === ME ? "Me" : state.ownerFilter)} &middot; clear</button>` : ""}
+          </div>
+
+        </header>
+
+        ${state.showChecklist ? renderChecklistOverview() : `<div class="workspace">
+          <div class="list-pane">
+            ${Object.keys(grouped).length
+              ? Object.entries(grouped).map(([group, items]) => `
+                  <div class="group-head">
+                    <span class="dot"></span>${esc(group)}
+                    <span class="count-chip">${items.length}</span>
+                  </div>
+                  ${items.map(renderCard).join("")}`).join("")
+              : `<div style="padding:50px 16px;text-align:center;color:var(--ink-faint)">
+                   ${icon.empty}
+                   <p style="margin:12px 0 4px;font-size:13px;font-weight:600;color:var(--ink-soft)">No actions here</p>
+                   <p style="margin:0;font-size:12px">
+                     ${state.ownerScope === "Team" && !state.ownerFilter
+                       ? "Nothing assigned to the team yet."
+                       : "Try a different range or clear the filters."}
+                   </p>
+                 </div>`}
+          </div>
+
+          <div class="detail-pane ${selected ? "open" : ""}">
+            ${selected ? renderDetail(selected) : `
+              <div class="detail-empty">
+                ${icon.empty}
+                <div style="font-size:13px;font-weight:600;color:var(--ink-soft)">Select an action</div>
+                <div style="font-size:12px">Pick something on the left to see the full context and your notes.</div>
+              </div>`}
+          </div>
+        </div>`}
+      </div>
+    </div>
+
+    ${state.showForm ? renderForm() : ""}
+    ${state.showEmail ? renderEmailCapture() : ""}
+    ${state.showSubtask ? renderSubtaskEditor() : ""}
+    ${state.showProjects ? renderProjects() : ""}
+    ${state.showPeople ? renderPeople() : ""}
+    ${state.showSettings ? renderSettings() : ""}
+    ${state.showUpload ? renderUpload() : ""}
+    ${state.showContext ? renderContextEditor() : ""}
+    ${state.toasts.length ? `<div class="toast-wrap">${state.toasts.map(t => `<div class="toast ${t.kind}">${esc(t.message)}</div>`).join("")}</div>` : ""}
+  `;
+
+  save();
+  bind();
+}
+
+function renderChecklistOverview() {
+  const groups = {};
+  state.tasks.forEach(task => {
+    (task.checklist || []).forEach((subtask, index) => {
+      const key = task.project || "Unassigned project";
+      (groups[key] = groups[key] || []).push({ task, subtask, index });
+    });
+  });
+  const total = Object.values(groups).flat().length;
+  const done = Object.values(groups).flat().filter(item => item.subtask.done).length;
+
+  return `
+    <section class="checklist-overview">
+      <div class="checklist-overview-head">
+        <div>
+          <h2>Checklist overview</h2>
+          <p>${done} of ${total} checklist items complete across ${Object.keys(groups).length} project${Object.keys(groups).length === 1 ? "" : "s"}.</p>
+        </div>
+        <button class="btn-ghost" data-act="toggle-checklist">Back to tasks</button>
+      </div>
+      ${total ? Object.entries(groups).map(([project, items]) => `
+        <details class="checklist-project" open>
+          <summary><span class="dot"></span><strong>${esc(project)}</strong><span class="count-chip">${items.filter(i => !i.subtask.done).length} open</span></summary>
+          <div class="checklist-items">
+            ${items.map(item => `
+              <div class="overview-item ${item.subtask.done ? "done" : ""}">
+                <input type="checkbox" data-subtask-toggle="${item.task.id}" data-subtask-index="${item.index}" ${item.subtask.done ? "checked" : ""}>
+                <button class="overview-item-main" data-subtask-open="${item.task.id}" data-subtask-index="${item.index}">
+                  <span class="overview-subtask">${esc(item.subtask.text)}</span>
+                  <span class="overview-parent">${esc(item.task.title)}</span>
+                </button>
+                <span class="subtask-owner">${esc(item.subtask.owner === ME ? "Me" : item.subtask.owner || item.task.owner)}</span>
+              </div>`).join("")}
+          </div>
+        </details>`).join("") : `
+        <div class="checklist-empty">No checklist items yet. Open a task and add checklist items from its detail pane.</div>`}
+    </section>`;
+}
+
+function renderCard(task) {
+  const done = task.status === "Completed";
+  const active = state.selected === task.id;
+  const showMeta = !(task.sourceName === "Manually added" && task.source === "Ad-hoc request");
+
+  return `
+    <div class="card priority-${task.priority || "Medium"} ${active ? "active" : ""} ${done ? "done" : ""}">
+      <button class="card-body" data-open="${task.id}">
+        <div class="card-title">${esc(task.title)}</div>
+        ${showMeta ? `<div class="card-meta truncate">${esc(task.sourceName)} &middot; ${esc(whenLabel(task))}</div>` : ""}
+      </button>
+      <button class="today-star ${task.due === TODAY ? "active" : ""}" data-today-toggle="${task.id}" title="${task.due === TODAY ? "Remove from Today" : "Work on Today"}" aria-label="${task.due === TODAY ? "Remove from Today" : "Work on Today"}">${icon.star}</button>
+    </div>`;
+}
+
+function renderDetail(task) {
+  const status = effectiveStatus(task);
+  const done = task.status === "Completed";
+  const ref = task.sourceRef;
+  const notes = (task.notes || []).slice().sort((a, b) => b.at.localeCompare(a.at));
+
+  return `
+    <button class="btn-soft back-btn" data-act="back" style="margin-bottom:14px">${icon.back} Back to list</button>
+
+    <div class="detail-head">
+      <div style="min-width:0;flex:1">
+        <div class="detail-title ${done ? "done" : ""}">${esc(task.title)} <button class="icon-btn" data-act="edit-task-core" data-id="${task.id}" title="Edit title and details" aria-label="Edit title and details">${icon.pen}</button></div>
+        <div class="detail-sub">
+          <span class="status ${status}">${status}</span>
+          <span class="chip project-pill">${esc(task.project)}</span>
+          <span class="chip priority-pill priority-${task.priority || "Medium"}">${task.priority}</span>
+          ${task.due ? `<span class="chip due-pill">Due ${formatDate(task.due)}</span>` : ""}
+          <span class="chip owner-pill"><span style="opacity:.6">Owner:</span> ${esc(task.owner === ME ? "Me" : task.owner)}</span>
+        </div>
+      </div>
+      <button class="today-star ${task.due === TODAY ? "active" : ""}" data-today-toggle="${task.id}" title="${task.due === TODAY ? "Remove from Today" : "Work on Today"}" aria-label="${task.due === TODAY ? "Remove from Today" : "Work on Today"}">${icon.star}</button>
+    </div>
+
+    ${ref ? `<div class="d-section">${renderContext(task)}</div>` : ""}
+
+    <div class="d-section">
+      <div class="d-label">${icon.step} What you need to do</div>
+      <p style="margin:0 0 10px;font-size:13px;color:var(--ink-soft)">${esc(task.details)}</p>
+      ${(task.steps || []).length ? `
+        <ol class="steps">
+          ${task.steps.map((s, i) => `<li><span class="n">${i + 1}</span><span>${esc(s)}</span></li>`).join("")}
+        </ol>` : ""}
+    </div>
+
+    <div class="d-section">
+      <div class="d-label">${icon.check} Subtasks${(task.subtasks || []).length ? ` (${task.subtasks.length})` : ""}</div>
+      <div class="subtask-list">
+        ${(task.subtasks || []).map((subtask, index) => `
+          <label class="subtask-row ${subtask.done ? "done" : ""}" draggable="true" data-subtask-drag="${task.id}" data-subtask-drop="${task.id}" data-subtask-open="${task.id}" data-subtask-index="${index}">
+            <input type="checkbox" data-subtask-toggle="${task.id}" data-subtask-index="${index}" ${subtask.done ? "checked" : ""}>
+            <span>${esc(subtask.text)}${(subtask.notes || []).length ? ` (${subtask.notes.length})` : ""}</span>
+            ${subtask.due ? `<span class="subtask-owner">Due ${formatDate(subtask.due)}</span>` : ""}
+            ${subtask.owner ? `<span class="subtask-owner">${esc(subtask.owner === ME ? "Me" : subtask.owner)}</span>` : ""}
+          </label>`).join("") || `<div class="note-hint">No subtasks yet. Break the action into smaller steps below.</div>`}
+      </div>
+      <div class="subtask-add">
+        <input class="field" id="subtask-input" placeholder="Add subtask...">
+        <button class="btn-ghost" data-act="add-subtask" data-id="${task.id}">${icon.plus} Add</button>
+      </div>
+    </div>
+
+    <div class="d-section">
+      <div class="d-label">${icon.pen} My updates${notes.length ? ` (${notes.length})` : ""}</div>
+      <button class="btn-soft" data-act="toggle-note-input" style="margin-bottom:10px">${state.showNoteInput ? "Hide new update" : "Add update"}</button>
+      ${state.showNoteInput ? `
+      <div class="note-box">
+        ${renderRichToolbar("note-input")}
+        <div class="note-input rich-editor" id="note-input" contenteditable="true"
+             data-placeholder="What did you do, what did you reply, what are you waiting on?">${sanitizeRichHtml(state.noteDraft)}</div>
+        <div class="note-actions">
+          <button class="btn-primary" data-act="add-note" data-id="${task.id}">${icon.plus} Add update</button>
+          <span class="note-hint">Ctrl+Enter to save &middot; bold, italic, underline, bullets and numbers supported</span>
+        </div>
+      </div>` : ""}
+
+      ${notes.length ? `
+        <div style="margin-top:12px">
+          ${notes.map(n => `
+            <div class="note">
+              <span class="note-dot"></span>
+              <div style="min-width:0;flex:1">
+                <div class="note-when">${esc(shortStamp(n.at))}</div>
+                <div class="note-text">${noteHtml(n)}</div>
+              </div>
+              <button class="note-del" data-note-del="${esc(n.at)}" data-id="${task.id}" aria-label="Delete update">${icon.trash}</button>
+            </div>`).join("")}
+        </div>`
+      : `<p style="margin:10px 0 0;font-size:12px;color:var(--ink-faint)">
+           No updates yet. Add one so you know where you left off next time.
+         </p>`}
+    </div>
+
+    ${(task.discussion || []).length ? `
+      <div class="d-section">
+        <div class="d-label">${icon.people} What was said</div>
+        <div class="quote">
+          ${task.discussion.map(line => {
+            const att = ref && ref.attendees;
+            const resolved = resolveName(line.speaker, att);
+            const matched = att && att.some(a => a.toLowerCase() === resolved.toLowerCase());
+            return `<p><span class="speaker">${esc(resolved === ME ? "You" : resolved)}${matched ? '<span class="matched">attendee</span>' : ""}:</span> ${esc(line.text)}</p>`;
+          }).join("")}
+        </div>
+      </div>` : ""}
+
+    ${ref ? renderSource(ref) : ""}
+
+    <div class="controls">
+      <label for="owner-${task.id}">Responsible</label>
+      <div class="select-wrap">
+        <select class="field" id="owner-${task.id}" data-owner-set="${task.id}" style="width:180px">
+          ${ownerNames().map(o => `<option value="${esc(o)}" ${task.owner === o ? "selected" : ""}>${o === ME ? "Me" : esc(o)}</option>`).join("")}
+          <option value="__add__">+ Add someone not in the meeting...</option>
+        </select>${icon.caret}
+      </div>
+
+      <label for="proj-${task.id}">Project</label>
+      <div class="select-wrap">
+        <select class="field" id="proj-${task.id}" data-project-set="${task.id}" style="width:190px">
+          ${projects.map(p => `<option value="${esc(p)}" ${task.project === p ? "selected" : ""}>${esc(p)}</option>`).join("")}
+          ${projects.includes(task.project) ? "" : `<option value="${esc(task.project)}" selected>${esc(task.project)}</option>`}
+          <option value="__add__">+ New project...</option>
+        </select>${icon.caret}
+      </div>
+
+      <label for="status-${task.id}">Status</label>
+      <div class="select-wrap">
+        <select class="field" id="status-${task.id}" data-status-set="${task.id}" style="width:150px">
+          ${["Pending", "Waiting", "Completed"].map(option => `<option value="${option}" ${effectiveStatus(task) === option ? "selected" : ""}>${option}</option>`).join("")}
+        </select>${icon.caret}
+      </div>
+
+      <label for="due-${task.id}">Due date</label>
+      <input class="field" id="due-${task.id}" data-due-set="${task.id}" type="date" value="${esc(task.due || "")}" style="width:150px">
+
+      <label for="sla-${task.id}">SLA</label>
+      <div class="select-wrap">
+        <select class="field" id="sla-${task.id}" data-priority-set="${task.id}" style="width:150px">
+          ${["Critical", "High", "Medium", "Low"].map(option => `<option value="${option}" ${task.priority === option ? "selected" : ""}>${option}</option>`).join("")}
+        </select>${icon.caret}
+      </div>
+
+      ${task.owner !== ME ? `<button class="btn-ghost" data-owner-set="${task.id}" data-owner-value="${esc(ME)}">Take it back</button>` : ""}
+    </div>`;
+}
+
+function renderContext(task) {
+  const ref = task.sourceRef;
+  const isEmail = ref.kind === "email";
+  const glyph = isEmail ? icon.mail : ref.kind === "meeting" ? icon.video : icon.notes;
+  const where = isEmail ? ref.subject : ref.title;
+  const who = isEmail
+    ? `From ${esc(ref.from)}${ref.to ? " &middot; to " + esc(ref.to) : ""}`
+    : (ref.attendees && ref.attendees.length
+        ? "With " + ref.attendees.map(esc).join(", ")
+        : '<span style="color:var(--amber)">Attendees not captured</span>');
+
+  const trigger = (task.discussion || []).find(l => {
+    const r = resolveName(l.speaker, ref.attendees);
+    return r !== ME;
+  }) || (task.discussion || [])[0];
+
+  const raisedBy = trigger ? resolveName(trigger.speaker, ref.attendees) : null;
+
+  return `
+    <div class="context">
+      <span class="context-icon">${glyph}</span>
+      <div style="min-width:0;flex:1">
+        <div class="context-when">${esc(ref.when ? longStamp(ref.when) : "Date not recorded")}</div>
+        <div class="context-where">${isEmail ? "Email" : ref.kind === "chat" ? "Chat" : "Meeting"}: ${esc(where)}</div>
+        ${who ? `<div class="context-who">${who}</div>` : ""}
+        <button data-act="edit-context" data-id="${task.id}"
+                style="margin-top:7px;font-size:11px;font-weight:700;color:var(--primary)">
+          ${icon.pen} Correct these details
+        </button>
+      </div>
+      <a class="btn-open" href="${esc(ref.link)}" target="_blank" rel="noopener noreferrer">
+        ${icon.ext} ${esc(ref.linkLabel || "Open")}
+      </a>
+    </div>
+    ${trigger ? `
+      <div class="trigger">
+        <strong>Why this is on your list:</strong>
+        ${raisedBy && raisedBy !== ME ? esc(raisedBy) + " said" : "It was raised as"}
+        &ldquo;${esc(trigger.text)}&rdquo;
+      </div>` : ""}`;
+}
+
+function renderRichToolbar(editorId) {
+  return `
+    <div class="rich-toolbar" data-editor="${editorId}">
+      <button type="button" data-rich-cmd="bold" title="Bold"><b>B</b></button>
+      <button type="button" data-rich-cmd="italic" title="Italic"><i>I</i></button>
+      <button type="button" data-rich-cmd="underline" title="Underline"><u>U</u></button>
+      <button type="button" data-rich-cmd="insertUnorderedList" title="Bulleted list">&bull;</button>
+      <button type="button" data-rich-cmd="insertOrderedList" title="Numbered list">1.</button>
+      <select class="rich-color" data-rich-color title="Font colour">
+        <option value="">Colour</option>
+        <option value="#FFFFFF">White</option>
+        <option value="#0078D4">Blue</option>
+        <option value="#D13438">Red</option>
+        <option value="#B87A00">Amber</option>
+        <option value="#0B6A0B">Green</option>
+        <option value="#1B1A19">Black</option>
+      </select>
+    </div>`;
+}
+
+function sanitizeRichHtml(value) {
+  if (!value) return "";
+  const template = document.createElement("template");
+  template.innerHTML = String(value);
+  const allowed = new Set(["B", "STRONG", "I", "EM", "U", "UL", "OL", "LI", "DIV", "P", "BR", "SPAN", "FONT"]);
+  const safeColour = colour => /^(#[0-9a-f]{3}|#[0-9a-f]{6}|rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\)|[a-z]+)$/i.test(colour || "");
+  template.content.querySelectorAll("*").forEach(node => {
+    if (!allowed.has(node.tagName)) {
+      node.replaceWith(document.createTextNode(node.textContent || ""));
+      return;
+    }
+    [...node.attributes].forEach(attr => {
+      const name = attr.name.toLowerCase();
+      const val = attr.value.trim();
+      if (name === "color" && safeColour(val)) return;
+      if (name === "style" && /^color:\s*([^;]+);?$/i.test(val)) {
+        const colour = val.match(/^color:\s*([^;]+);?$/i)[1].trim();
+        if (safeColour(colour)) return;
+      }
+      node.removeAttribute(attr.name);
+    });
+  });
+  return template.innerHTML;
+}
+
+function richPlainText(html) {
+  if (!html) return "";
+  const tmp = document.createElement("div");
+  tmp.innerHTML = sanitizeRichHtml(html);
+  tmp.querySelectorAll("br,li,p,div").forEach(node => node.appendChild(document.createTextNode("\n")));
+  return tmp.textContent.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function noteHtml(note) {
+  return note.html ? sanitizeRichHtml(note.html) : esc(note.text || "").replace(/\n/g, "<br>");
+}
+
+function renderSource(ref) {
+  const isEmail = ref.kind === "email";
+  const glyph = isEmail ? icon.mail : ref.kind === "meeting" ? icon.video : icon.notes;
+  const title = isEmail ? ref.subject : ref.title;
+  const meta = isEmail
+    ? `From ${esc(ref.from)}${ref.to ? " &middot; To " + esc(ref.to) : ""} &middot; ${esc(shortStamp(ref.when))}`
+    : `${esc(shortStamp(ref.when))}${ref.attendees ? " &middot; " + ref.attendees.map(esc).join(", ") : ""}`;
+
+  return `
+    <div class="d-section">
+      <div class="d-label">${glyph} Source</div>
+      <div class="source-card">
+        <div class="source-head">
+          <span class="source-icon">${glyph}</span>
+          <div style="min-width:0">
+            <div class="source-subject">${esc(title)}</div>
+            <div class="source-meta">${meta}</div>
+          </div>
+          <a class="btn-open" href="${esc(ref.link)}" target="_blank" rel="noopener noreferrer">
+            ${icon.ext} ${esc(ref.linkLabel || "Open")}
+          </a>
+        </div>
+        ${isEmail && ref.attachments && ref.attachments.length ? `
+          <div class="atts">
+            ${ref.attachments.map(a => `
+              <a class="att" href="${esc(a.link)}" target="_blank" rel="noopener noreferrer">
+                ${icon.clip}<span>${esc(a.name)}</span><span class="sz">${esc(a.size)}</span>
+              </a>`).join("")}
+          </div>` : ""}
+      </div>
+    </div>`;
+}
+
+/* ---------- Modals ---------- */
+function renderEmailCapture() {
+  const d = state.emailDraft;
+  return `
+    <div class="overlay" data-act="close-email">
+      <div class="modal lg" role="dialog" aria-modal="true" aria-label="Capture flagged email">
+        <div class="modal-head">
+          <div><h2>Flagged email</h2><div class="subtitle">Capture the email context first, then create an actionable follow-up</div></div>
+          <button class="icon-btn" data-act="close-email" aria-label="Close">${icon.close}</button>
+        </div>
+        <div class="form">
+          <div><label for="e-subject">Email subject</label><input class="field" id="e-subject" value="${esc(d.subject)}" placeholder="Subject from Outlook"></div>
+          <div class="form-grid">
+            <div><label for="e-from">From</label><input class="field" id="e-from" value="${esc(d.from)}" placeholder="Sender"></div>
+            <div><label for="e-to">To / recipients</label><input class="field" id="e-to" value="${esc(d.to)}" placeholder="Recipients"></div>
+          </div>
+          <div class="form-grid">
+            <div><label for="e-received">Received</label><input class="field" id="e-received" type="datetime-local" value="${esc(d.received)}"></div>
+            <div><label for="e-attachment">Attachment names</label><input class="field" id="e-attachment" value="${esc(d.attachment)}" placeholder="file.xlsx, notes.pdf"></div>
+          </div>
+          <div><label for="e-body">Relevant email content</label><textarea class="field" id="e-body" style="height:auto;min-height:130px;padding:10px 12px" placeholder="Paste the relevant body or decision here">${esc(d.body)}</textarea></div>
+          <div class="hint">The email body is saved into the action context. Add a precise next step so the tracker does not reduce the email to a vague reminder.</div>
+          <div class="form-grid">
+            <div><label for="e-title">Action title</label><input class="field" id="e-title" value="${esc(d.title)}" placeholder="What needs to happen?"></div>
+            <div><label for="e-next">Next step</label><input class="field" id="e-next" value="${esc(d.nextStep)}" placeholder="First concrete step"></div>
+          </div>
+          <div class="form-grid">
+            <div><label for="e-project">Project</label><div class="select-wrap"><select class="field" id="e-project">${projects.map(p => `<option ${d.project === p ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>${icon.caret}</div></div>
+            <div><label for="e-owner">Responsible</label><div class="select-wrap"><select class="field" id="e-owner">${ownerNames().map(o => `<option value="${esc(o)}" ${d.owner === o ? "selected" : ""}>${o === ME ? "Me" : esc(o)}</option>`).join("")}</select>${icon.caret}</div></div>
+          </div>
+          <button class="btn-primary full" data-act="save-email">Create action from email</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderContextEditor() {
+  const task = state.tasks.find(t => t.id === state.showContext);
+  if (!task) return "";
+  const ref = task.sourceRef || { kind: "meeting", title: "", when: "", attendees: [], link: "" };
+  const isEmail = ref.kind === "email";
+
+  return `
+    <div class="overlay" data-act="close-context">
+      <div class="modal lg" role="dialog" aria-modal="true" aria-label="Correct context">
+        <div class="modal-head">
+          <div>
+            <h2>Correct the details</h2>
+            <div class="subtitle">Fix anything the capture got wrong</div>
+          </div>
+          <button class="icon-btn" data-act="close-context" aria-label="Close">${icon.close}</button>
+        </div>
+
+        <div class="form">
+          <div class="form-grid">
+            <div>
+              <label for="c-kind">Came from</label>
+              <div class="select-wrap">
+                <select class="field" id="c-kind">
+                  ${[["meeting","Meeting"],["email","Email"],["chat","Chat"]].map(([v,l]) =>
+                    `<option value="${v}" ${ref.kind === v ? "selected" : ""}>${l}</option>`).join("")}
+                </select>${icon.caret}
+              </div>
+            </div>
+            <div>
+              <label for="c-when">When</label>
+              <input class="field" id="c-when" type="datetime-local" value="${esc((ref.when || "").slice(0,16))}" />
+            </div>
+          </div>
+
+          <div>
+            <label for="c-title">${isEmail ? "Subject" : "Meeting or chat name"}</label>
+            <input class="field" id="c-title" value="${esc(isEmail ? (ref.subject || "") : (ref.title || ""))}" />
+          </div>
+
+          <div>
+            <label for="c-attendees">Who was actually there</label>
+            <input class="field" id="c-attendees" value="${esc((ref.attendees || []).join(", "))}"
+                   placeholder="Comma separated, e.g. Amirah, Himanshi" />
+            <div class="note-hint" style="margin-top:5px">
+              Leave blank if you are not sure. Names here are used to match who said what.
+            </div>
+          </div>
+
+          <div>
+            <label for="c-link">Link</label>
+            <input class="field" id="c-link" value="${esc(ref.link || "")}" placeholder="Teams or Outlook link" />
+          </div>
+
+          ${(task.discussion || []).length ? `
+            <div>
+              <label>Quoted lines</label>
+              ${task.discussion.map((line, i) => `
+                <div class="row-item">
+                  <input class="field" data-quote-speaker="${i}" value="${esc(line.speaker)}" style="max-width:130px" />
+                  <input class="field" data-quote-text="${i}" value="${esc(line.text)}" />
+                  <button class="icon-btn" data-quote-del="${i}" data-id="${task.id}" aria-label="Remove quote">${icon.trash}</button>
+                </div>`).join("")}
+              <div class="note-hint">Remove any line that was not actually said, or was said by someone else.</div>
+            </div>` : `
+            <div class="hint">No quoted lines recorded for this action.</div>`}
+
+          <button class="btn-primary full" data-act="save-context" data-id="${task.id}">Save corrections</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSubtaskEditor() {
+  const parent = state.tasks.find(t => t.id === state.showSubtask.taskId);
+  const subtask = parent && parent.subtasks && parent.subtasks[state.showSubtask.index];
+  if (!parent || !subtask) return "";
+  const notes = (subtask.notes || []).slice().sort((a, b) => b.at.localeCompare(a.at));
+
+  return `
+    <div class="overlay" data-act="close-subtask">
+      <div class="modal lg" role="dialog" aria-modal="true" aria-label="Subtask details">
+        <div class="modal-head">
+          <div><h2>Subtask details</h2><div class="subtitle">${esc(parent.title)}</div></div>
+          <button class="icon-btn" data-act="close-subtask" aria-label="Close">${icon.close}</button>
+        </div>
+        <div class="form">
+          <div><label for="st-text">Subtask</label><input class="field" id="st-text" value="${esc(subtask.text)}"></div>
+          <div class="form-grid">
+            <div><label for="st-owner">Responsible</label><div class="select-wrap"><select class="field" id="st-owner">${ownerNames().map(o => `<option value="${esc(o)}" ${subtask.owner === o ? "selected" : ""}>${o === ME ? "Me" : esc(o)}</option>`).join("")}</select>${icon.caret}</div></div>
+            <div><label for="st-status">Status</label><div class="select-wrap"><select class="field" id="st-status"><option value="Open" ${!subtask.done ? "selected" : ""}>Open</option><option value="Completed" ${subtask.done ? "selected" : ""}>Completed</option></select>${icon.caret}</div></div>
+          </div>
+          <div><label for="st-due">Due date</label><input class="field" id="st-due" type="date" value="${esc(subtask.due || "")}"></div>
+          <details class="checklist-section" open>
+            <summary>Checklist${(subtask.checklist || []).length ? ` (${subtask.checklist.length})` : ""}</summary>
+            <div class="checklist-body">
+              <div class="subtask-list">
+                ${(subtask.checklist || []).map((item, index) => `
+                  <label class="subtask-row ${item.done ? "done" : ""}">
+                    <input type="checkbox" data-subtask-checklist-toggle="${index}" ${item.done ? "checked" : ""}>
+                    <span>${esc(item.text)}</span>
+                  </label>`).join("") || `<div class="note-hint">No checklist items yet.</div>`}
+              </div>
+              <div class="subtask-add">
+                <input class="field" id="st-checklist-input" placeholder="Add checklist item...">
+                <button class="btn-ghost" data-act="add-subtask-checklist">${icon.plus} Add</button>
+              </div>
+            </div>
+          </details>
+          <div class="d-label">${icon.pen} Subtask updates${notes.length ? ` (${notes.length})` : ""}</div>
+          <div class="note-box">
+            ${renderRichToolbar("st-note")}
+            <div class="note-input rich-editor" id="st-note" contenteditable="true" data-placeholder="Add a comment about this subtask..."></div>
+            <div class="note-actions"><button class="btn-primary" data-act="add-subtask-note">${icon.plus} Add update</button><span class="note-hint">Ctrl+Enter to save &middot; formatting supported</span></div>
+          </div>
+          ${notes.map(n => `<div class="note"><span class="note-dot"></span><div style="min-width:0;flex:1"><div class="note-when">${esc(shortStamp(n.at))}</div><div class="note-text">${noteHtml(n)}</div></div><button class="note-del" data-subtask-note-del="${esc(n.at)}">${icon.trash}</button></div>`).join("")}
+          <button class="btn-primary full" data-act="save-subtask">Save subtask</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function saveContext(id) {
+  const g = sel => { const el = document.getElementById(sel); return el ? el.value.trim() : ""; };
+  const kind = g("c-kind");
+  const attendees = g("c-attendees").split(",").map(s => s.trim()).filter(Boolean);
+
+  const quotes = [...document.querySelectorAll("[data-quote-speaker]")].map(el => {
+    const i = el.dataset.quoteSpeaker;
+    const textEl = document.querySelector(`[data-quote-text="${i}"]`);
+    return { speaker: el.value.trim(), text: textEl ? textEl.value.trim() : "" };
+  }).filter(q => q.text);
+
+  // Anyone named as an attendee should be assignable.
+  attendees.forEach(a => addPerson(a));
+
+  state.tasks = state.tasks.map(t => {
+    if (t.id !== id) return t;
+    const ref = { ...(t.sourceRef || {}) };
+    ref.kind = kind;
+    ref.when = g("c-when");
+    ref.link = g("c-link");
+    ref.attendees = attendees;
+    if (kind === "email") ref.subject = g("c-title"); else ref.title = g("c-title");
+    return { ...t, sourceRef: ref, discussion: quotes, sourceName: g("c-title") || t.sourceName };
+  });
+
+  state.showContext = null;
+  toast("Details corrected", "good");
+}
+
+function renderForm() {
+  const d = state.draft;
+  return `
+    <div class="overlay" data-act="close-form">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Add action">
+        <div class="modal-head">
+          <div><h2>Create request</h2><div class="subtitle">Capture a request that did not come from email or a meeting</div></div>
+          <button class="icon-btn" data-act="close-form" aria-label="Close">${icon.close}</button>
+        </div>
+        <div class="form">
+          <div>
+            <label for="f-title">Title</label>
+            <input class="field" id="f-title" value="${esc(d.title)}" placeholder="What needs doing?" />
+            ${state.formError ? `<div class="err">${esc(state.formError)}</div>` : ""}
+          </div>
+          <div>
+            <label for="f-details">Details</label>
+            <textarea class="field" id="f-details" style="height:auto;min-height:80px;padding:10px 12px">${esc(d.details)}</textarea>
+          </div>
+          <div>
+            <label for="f-update">Initial update / comment</label>
+            <textarea class="field" id="f-update" style="height:auto;min-height:70px;padding:10px 12px" placeholder="What is the current position or what have you already done?">${esc(d.initialUpdate)}</textarea>
+          </div>
+          <div>
+            <label for="f-subtasks">Subtasks</label>
+            <textarea class="field" id="f-subtasks" style="height:auto;min-height:80px;padding:10px 12px" placeholder="One subtask per line">${esc(d.subtasks)}</textarea>
+          </div>
+          <div class="form-grid">
+            <div>
+              <label for="f-project">Project</label>
+              <div class="select-wrap">
+                <select class="field" id="f-project">
+                  <option value="Unassigned project" ${d.project === "Unassigned project" || !d.project ? "selected" : ""}>Choose a project</option>
+                  ${projects.map(p => `<option ${d.project === p ? "selected" : ""}>${esc(p)}</option>`).join("")}
+                </select>${icon.caret}
+              </div>
+            </div>
+            <div>
+              <label for="f-due">Due date</label>
+              <input class="field" id="f-due" type="date" value="${esc(d.due)}" />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div>
+              <label for="f-owner">Responsible</label>
+              <div class="select-wrap">
+                <select class="field" id="f-owner">
+                  ${ownerNames().map(o => `<option value="${esc(o)}" ${d.owner === o ? "selected" : ""}>${o === ME ? "Me" : esc(o)}</option>`).join("")}
+                </select>${icon.caret}
+              </div>
+            </div>
+            <div>
+              <label for="f-priority">Priority</label>
+              <div class="select-wrap">
+                <select class="field" id="f-priority">
+                  ${["Critical","High","Medium","Low"].map(p => `<option ${d.priority === p ? "selected" : ""}>${p}</option>`).join("")}
+                </select>${icon.caret}
+              </div>
+            </div>
+          </div>
+          <button class="btn-primary full" data-act="save">Save action</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderProjects() {
+  return `
+    <div class="overlay" data-act="close-projects">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Manage projects">
+        <div class="modal-head">
+          <div><h2>Manage projects</h2><div class="subtitle">Rename these to your real project names</div></div>
+          <button class="icon-btn" data-act="close-projects" aria-label="Close">${icon.close}</button>
+        </div>
+        <div>
+          ${projects.map((p, i) => `
+            <div class="row-item">
+              <span class="dot"></span>
+              <input class="field" data-project-name="${i}" value="${esc(p)}" />
+              <button class="icon-btn" data-project-del="${i}" aria-label="Remove">${icon.trash}</button>
+            </div>`).join("")}
+        </div>
+        <button class="btn-soft" data-act="add-project-row" style="width:100%;justify-content:center">${icon.plus} Add project</button>
+        <div class="hint">Renaming updates every action already using that project.</div>
+        <button class="btn-primary full" data-act="save-projects">Save projects</button>
+      </div>
+    </div>`;
+}
+
+function renderPeople() {
+  const editable = people.filter(p => p.name !== ME && p.name !== "Unassigned");
+  return `
+    <div class="overlay" data-act="close-people">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Manage people">
+        <div class="modal-head">
+          <div><h2>Manage people</h2><div class="subtitle">Set the correct names for your team</div></div>
+          <button class="icon-btn" data-act="close-people" aria-label="Close">${icon.close}</button>
+        </div>
+        <div>
+          ${editable.map((p, i) => `
+            <div class="row-item">
+              <span class="${avatarClass(p.name)} sm">${initials(p.name)}</span>
+              <input class="field" data-person-name="${i}" value="${esc(p.name)}" />
+              <button class="icon-btn" data-person-del="${i}" aria-label="Remove">${icon.trash}</button>
+            </div>`).join("")}
+        </div>
+        <button class="btn-soft" data-act="add-person-row" style="width:100%;justify-content:center">${icon.plus} Add person</button>
+        <div class="hint">Renaming updates every action assigned to that person.</div>
+        <button class="btn-primary full" data-act="save-people">Save people</button>
+      </div>
+    </div>`;
+}
+
+function renderSettings() {
+  return `
+    <div class="overlay" data-act="close-settings">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Settings">
+        <div class="modal-head">
+          <div><h2>Settings</h2><div class="subtitle">Export and backup your manually maintained tracker</div></div>
+          <button class="icon-btn" data-act="close-settings" aria-label="Close">${icon.close}</button>
+        </div>
+        <div class="form">
+          <label class="settings-row">
+            <span><strong>Dark theme</strong><small>Use the Outlook/Microsoft 365 dark style</small></span>
+            <input type="checkbox" data-theme-toggle ${state.darkMode ? "checked" : ""}>
+          </label>
+          <button class="btn-soft" data-act="export-csv" style="width:100%;justify-content:center">${icon.upload} Export for Microsoft Lists</button>
+          <button class="btn-soft" data-act="export-json" style="width:100%;justify-content:center">Export backup (JSON)</button>
+          <div class="hint">Exports include tasks, projects, owners, checklist items, task updates, and subtask updates. Reset is intentionally unavailable so tracked work cannot be cleared accidentally.</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderUpload() {
+  const p = state.parsed;
+  return `
+    <div class="overlay" data-act="close-upload">
+      <div class="modal lg" role="dialog" aria-modal="true" aria-label="Upload transcript">
+        <div class="modal-head">
+          <div><h2>Upload transcript</h2><div class="subtitle">Pull actions from a meeting you were not part of</div></div>
+          <button class="icon-btn" data-act="close-upload" aria-label="Close">${icon.close}</button>
+        </div>
+
+        ${!p ? `
+          <div class="drop" id="dropzone">
+            <div style="color:var(--primary)">${icon.file}</div>
+            <h4>Drop a transcript here, or click to browse</h4>
+            <p>Supports .vtt, .txt, .md and .srt</p>
+          </div>
+          <input type="file" id="file-input" accept=".vtt,.txt,.md,.srt" style="display:none" />
+          <div class="hint">Names are matched against the meeting attendees. Anything unmatched stays Unassigned.</div>`
+        : `
+          <div style="font-size:12.5px;color:var(--ink-soft)">
+            <strong>${esc(p.fileName)}</strong> &middot; ${p.actions.length} action${p.actions.length === 1 ? "" : "s"} found
+            ${p.attendees.length ? " &middot; attendees: " + p.attendees.map(esc).join(", ") : ""}
+          </div>
+          ${p.actions.length ? `
+            <div class="preview">
+              ${p.actions.map((a, i) => `
+                <div class="preview-row">
+                  <input type="checkbox" data-parsed="${i}" ${a.include ? "checked" : ""} />
+                  <div style="min-width:0;flex:1">
+                    <div class="preview-title">${esc(a.title)}</div>
+                    <div class="preview-meta">
+                      Assigned to ${esc(a.owner === ME ? "Me" : a.owner)}
+                      ${a.fromAttendee ? '<span class="matched">attendee</span>' : '<span class="chip" style="font-size:9.5px;padding:1px 7px">not in meeting</span>'}
+                    </div>
+                  </div>
+                  <div class="select-wrap">
+                    <select class="field" data-parsed-owner="${i}" style="width:145px;height:32px">
+                      ${ownerNames().map(o => `<option value="${esc(o)}" ${a.owner === o ? "selected" : ""}>${o === ME ? "Me" : esc(o)}</option>`).join("")}
+                      ${ownerNames().includes(a.owner) ? "" : `<option value="${esc(a.owner)}" selected>${esc(a.owner)}</option>`}
+                    </select>
+                  </div>
+                </div>`).join("")}
+            </div>
+            <div style="display:flex;gap:9px;align-items:center;margin-top:12px;flex-wrap:wrap">
+              <label style="font-size:12px;font-weight:600;color:var(--ink-soft)">Assign all to project</label>
+              <div class="select-wrap">
+                <select class="field" id="parsed-project" style="width:190px">
+                  ${projects.map(pr => `<option>${esc(pr)}</option>`).join("")}
+                </select>${icon.caret}
+              </div>
+            </div>
+            <button class="btn-primary full" data-act="import-parsed">Import selected actions</button>`
+          : `
+            <div class="hint" style="margin-top:14px">
+              No clear actions found. The parser looks for "Action: ...", "Steve to ..." or "I'll ...".
+            </div>
+            <button class="btn-soft" data-act="reset-upload" style="width:100%;justify-content:center;margin-top:10px">Try another file</button>`}
+        `}
+      </div>
+    </div>`;
+}
+
+/* ==================================================================
+   Actions
+================================================================== */
+/* Columns match the Microsoft List schema so the file imports directly. */
+function exportCsv() {
+  const cols = ["Title", "Details", "Project", "Owner", "Status", "Priority",
+    "DueDate", "Source", "SourceName", "DiscussedOn", "Attendees", "SourceLink",
+    "Steps", "LatestUpdate", "LastUpdated", "AllUpdates", "Detected"];
+
+  const cell = v => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+
+  const rows = state.tasks.map(t => {
+    const notes = (t.notes || []).slice().sort((a, b) => a.at.localeCompare(b.at));
+    const latest = notes[notes.length - 1];
+    const ref = t.sourceRef || {};
+    return [
+      t.title, t.details, t.project,
+      t.owner === ME ? "Me" : t.owner,
+      effectiveStatus(t), t.priority, t.due || "",
+      t.source, t.sourceName,
+      ref.when || "",
+      (ref.attendees || []).join("; "),
+      ref.link || "",
+      (t.steps || []).join(" | "),
+      latest ? latest.text : "",
+      latest ? latest.at : "",
+      notes.map(n => "[" + n.at + "] " + n.text).join(" || "),
+      t.created
+    ].map(cell).join(",");
+  });
+
+  download(cols.join(",") + "\n" + rows.join("\n"),
+    "action-tracker-" + TODAY + ".csv", "text/csv;charset=utf-8;");
+  toast("CSV exported - import into your List", "good");
+}
+
+function exportJson() {
+  download(JSON.stringify({ tasks: state.tasks, people, projects }, null, 2),
+    "action-tracker-backup-" + TODAY + ".json", "application/json");
+  toast("Backup exported", "good");
+}
+
+function download(content, filename, type) {
+  const blob = new Blob(["\ufeff" + content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function setOwner(id, owner) {
+  state.tasks = state.tasks.map(t => t.id === id ? { ...t, owner } : t);
+  render();
+}
+
+function toggleToday(id) {
+  state.tasks = state.tasks.map(t => {
+    if (t.id !== id) return t;
+    const pinned = t.due !== TODAY;
+    return { ...t, isToday: pinned, due: pinned ? TODAY : "" };
+  });
+  render();
+}
+
+function addNote(id) {
+  const box = document.getElementById("note-input");
+  const html = box ? sanitizeRichHtml(box.innerHTML) : "";
+  const text = richPlainText(html);
+  if (!text) { toast("Write something first", "warn"); return; }
+
+  const at = new Date().toISOString().slice(0, 16);
+  state.tasks = state.tasks.map(t =>
+    t.id === id ? { ...t, notes: [...(t.notes || []), { at, text, html }] } : t);
+  state.noteDraft = "";
+  state.showNoteInput = false;
+  toast("Update saved", "good");
+}
+
+function editTaskCore(id) {
+  const task = state.tasks.find(t => t.id === id);
+  if (!task) return;
+  const title = prompt("Edit task title", task.title);
+  if (title === null) return;
+  const details = prompt("Edit what you need to do", task.details || "");
+  if (details === null) return;
+  state.tasks = state.tasks.map(t => t.id === id ? { ...t, title: title.trim() || t.title, details: details.trim() } : t);
+  render();
+}
+
+function deleteNote(id, at) {
+  state.tasks = state.tasks.map(t =>
+    t.id === id ? { ...t, notes: (t.notes || []).filter(n => n.at !== at) } : t);
+  render();
+}
+
+function readTranscript(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try { state.parsed = parseTranscript(String(reader.result), file.name); render(); }
+    catch (err) { toast("Could not read that file", "warn"); }
+  };
+  reader.onerror = () => toast("Could not read that file", "warn");
+  reader.readAsText(file);
+}
+
+function importParsed() {
+  const chosen = state.parsed.actions.filter(a => a.include);
+  if (!chosen.length) { toast("Nothing selected", "warn"); return; }
+  const el = document.getElementById("parsed-project");
+  const project = el ? el.value : projects[0];
+
+  state.tasks = [
+    ...chosen.map((a, i) => ({
+      id: Date.now() + i, title: a.title, details: a.details, project,
+      owner: a.owner, source: a.source, sourceName: a.sourceName,
+      created: TODAY, due: "", status: "Open", priority: a.priority,
+      isNew: true, notes: [], discussion: a.discussion, steps: a.steps, sourceRef: a.sourceRef
+    })),
+    ...state.tasks
+  ];
+
+  state.showUpload = false;
+  state.parsed = null;
+  toast(chosen.length + " action" + (chosen.length === 1 ? "" : "s") + " imported", "good");
+}
+
+function saveProjects() {
+  const renamed = [];
+  [...document.querySelectorAll("[data-project-name]")].forEach(input => {
+    const i = Number(input.dataset.projectName);
+    const before = projects[i];
+    const after = input.value.trim();
+    if (after && before !== after) renamed.push([before, after]);
+    if (after) projects[i] = after;
+  });
+
+  renamed.forEach(([before, after]) => {
+    state.tasks = state.tasks.map(t => t.project === before ? { ...t, project: after } : t);
+    if (state.project === before) state.project = after;
+  });
+
+  projects = [...new Set(projects.filter(Boolean))];
+  state.showProjects = false;
+  toast("Projects updated", "good");
+}
+
+function savePeople() {
+  const editable = people.filter(p => p.name !== ME && p.name !== "Unassigned");
+  const renamed = [];
+
+  [...document.querySelectorAll("[data-person-name]")].forEach(input => {
+    const i = Number(input.dataset.personName);
+    const before = editable[i] && editable[i].name;
+    const after = input.value.trim();
+    if (!before || !after || before === after) return;
+    renamed.push([before, after]);
+    const entry = people.find(p => p.name === before);
+    if (entry) {
+      entry.name = after;
+      entry.aliases = [...new Set([...entry.aliases, after.toLowerCase(), after.split(" ")[0].toLowerCase()])];
+    }
+  });
+
+  renamed.forEach(([before, after]) => {
+    state.tasks = state.tasks.map(t => t.owner === before ? { ...t, owner: after } : t);
+    if (state.ownerFilter === before) state.ownerFilter = after;
+  });
+
+  state.showPeople = false;
+  toast(renamed.length ? "People updated" : "No changes", renamed.length ? "good" : "");
+}
+
+function readDraft() {
+  const g = id => { const el = document.getElementById(id); return el ? el.value : ""; };
+  state.draft = {
+    title: g("f-title"), details: g("f-details"),
+    project: g("f-project") || "Unassigned project",
+    owner: g("f-owner") || ME,
+    due: g("f-due"), priority: g("f-priority") || "Medium",
+    initialUpdate: g("f-update"), subtasks: g("f-subtasks")
+  };
+}
+
+function readEmailDraft() {
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ""; };
+  state.emailDraft = {
+    subject: g("e-subject"), from: g("e-from"), to: g("e-to"), received: g("e-received"),
+    attachment: g("e-attachment"), body: g("e-body"), title: g("e-title"), nextStep: g("e-next"),
+    project: g("e-project") || projects[0], owner: g("e-owner") || ME, priority: "High"
+  };
+}
+
+function saveTask() {
+  readDraft();
+  if (!state.draft.title.trim()) {
+    state.formError = "Give the action a title.";
+    render();
+    const el = document.getElementById("f-title");
+    if (el) el.focus();
+    return;
+  }
+  const subtasks = state.draft.subtasks.split(/\r?\n/).map(text => text.trim()).filter(Boolean).map(text => ({ text, done: false, owner: d.owner, due: "", notes: [], checklist: [] }));
+  const notes = state.draft.initialUpdate.trim()
+    ? [{ at: new Date().toISOString().slice(0, 16), text: state.draft.initialUpdate.trim() }]
+    : [];
+  const taskId = Date.now();
+  state.tasks = [{
+    id: taskId, ...state.draft,
+    source: "Ad-hoc request", sourceName: "Manually added",
+    created: TODAY, status: "Open", isNew: true, notes, subtasks, checklist: [],
+    discussion: [], steps: [], sourceRef: null
+  }, ...state.tasks];
+  state.draft = { title: "", details: "", project: "", owner: ME, due: "", priority: "Medium", initialUpdate: "", subtasks: "" };
+  state.selected = taskId;
+  state.formError = "";
+  state.showForm = false;
+  render();
+}
+
+function saveEmailAction() {
+  readEmailDraft();
+  const d = state.emailDraft;
+  if (!d.subject || !d.title || !d.body) {
+    toast("Subject, action title and email content are required", "warn");
+    return;
+  }
+  const received = d.received || new Date().toISOString().slice(0, 16);
+  const attachments = d.attachment
+    ? d.attachment.split(",").map(name => name.trim()).filter(Boolean).map(name => ({ name, size: "" }))
+    : [];
+  const task = {
+    id: Date.now(), title: d.title, details: d.nextStep || d.body,
+    project: d.project, owner: d.owner, source: "Flagged email", sourceName: d.subject,
+    created: TODAY, due: "", status: "Open", priority: d.priority, isNew: true,
+    notes: [], subtasks: d.nextStep ? [{ text: d.nextStep, done: false, owner: d.owner, due: "", notes: [], checklist: [] }] : [], checklist: [],
+    discussion: [{ speaker: d.from || "Email sender", text: d.body }], steps: d.nextStep ? [d.nextStep] : [],
+    sourceRef: { kind: "email", subject: d.subject, from: d.from, to: d.to, when: received,
+      link: "#", linkLabel: "Open email", attachments }
+  };
+  state.tasks = [task, ...state.tasks];
+  state.selected = task.id;
+  state.showEmail = false;
+  state.emailDraft = { subject: "", from: "", to: "", received: "", body: "", attachment: "", title: "", nextStep: "", project: projects[0], owner: ME, priority: "High" };
+  toast("Flagged email added to your action tracker", "good");
+}
+
+function addSubtask(id) {
+  const input = document.getElementById("subtask-input");
+  const text = input ? input.value.trim() : "";
+  if (!text) { toast("Write a subtask first", "warn"); return; }
+  state.tasks = state.tasks.map(t => t.id === id ? { ...t, subtasks: [...(t.subtasks || []), { text, done: false, owner: t.owner, due: "", notes: [], checklist: [] }] } : t);
+  render();
+}
+
+function moveSubtask(taskId, from, to) {
+  if (from === to || from < 0 || to < 0) return;
+  state.tasks = state.tasks.map(t => {
+    if (t.id !== taskId) return t;
+    const subtasks = [...(t.subtasks || [])];
+    const [item] = subtasks.splice(from, 1);
+    if (!item) return t;
+    subtasks.splice(to, 0, item);
+    return { ...t, subtasks };
+  });
+  render();
+}
+
+function addSubtaskChecklist() {
+  const ref = state.showSubtask;
+  const input = document.getElementById("st-checklist-input");
+  const text = input ? input.value.trim() : "";
+  if (!text) { toast("Write a checklist item first", "warn"); return; }
+  state.tasks = state.tasks.map(t => t.id === ref.taskId
+    ? { ...t, subtasks: (t.subtasks || []).map((s, index) => index === ref.index ? { ...s, checklist: [...(s.checklist || []), { text, done: false }] } : s) }
+    : t);
+  render();
+}
+
+function saveSubtask() {
+  const ref = state.showSubtask;
+  const get = id => document.getElementById(id)?.value.trim() || "";
+  state.tasks = state.tasks.map(t => {
+    if (t.id !== ref.taskId) return t;
+    const subtasks = (t.subtasks || []).map((s, index) => index === ref.index
+      ? { ...s, text: get("st-text") || s.text, owner: get("st-owner") || ME, due: get("st-due"), done: get("st-status") === "Completed" }
+      : s);
+    return { ...t, subtasks };
+  });
+  state.showSubtask = null;
+  toast("Subtask saved", "good");
+}
+
+function addSubtaskNote() {
+  const editor = document.getElementById("st-note");
+  const html = editor ? sanitizeRichHtml(editor.innerHTML) : "";
+  const text = richPlainText(html);
+  if (!text) { toast("Write an update first", "warn"); return; }
+  const ref = state.showSubtask;
+  state.tasks = state.tasks.map(t => {
+    if (t.id !== ref.taskId) return t;
+    return { ...t, subtasks: (t.subtasks || []).map((s, index) => index === ref.index
+      ? { ...s, notes: [...(s.notes || []), { at: new Date().toISOString().slice(0, 16), text, html }] }
+      : s) };
+  });
+  toast("Subtask update saved", "good");
+}
+
+/* ==================================================================
+   Events
+================================================================== */
+function bind() {
+  const root = document.getElementById("root");
+
+  root.querySelectorAll("[data-group-toggle]").forEach(el =>
+    el.onclick = () => {
+      const group = el.dataset.groupToggle;
+      state.navGroups[group] = !state.navGroups[group];
+      render();
+    });
+
+  root.querySelectorAll("[data-section]").forEach(el =>
+    el.onclick = () => { state.section = el.dataset.section; state.showChecklist = false; render(); });
+
+  root.querySelectorAll("[data-priority]").forEach(el =>
+    el.onclick = () => { state.priority = el.dataset.priority; render(); });
+
+  root.querySelectorAll("[data-scope]").forEach(el =>
+    el.onclick = () => { state.ownerScope = el.dataset.scope; state.ownerFilter = null; render(); });
+
+  root.querySelectorAll("[data-owner-all]").forEach(el =>
+    el.onclick = () => { state.ownerScope = "All"; state.ownerFilter = null; render(); });
+
+  root.querySelectorAll("[data-owner-filter]").forEach(el =>
+    el.onclick = () => {
+      const owner = el.dataset.ownerFilter;
+      state.ownerScope = "All";
+      state.ownerFilter = state.ownerFilter === owner ? null : owner;
+      render();
+    });
+
+  root.querySelectorAll("[data-project]").forEach(el =>
+    el.onclick = () => {
+      state.project = state.project === el.dataset.project ? "All projects" : el.dataset.project;
+      render();
+    });
+
+  root.querySelectorAll("[data-project-all]").forEach(el =>
+    el.onclick = () => { state.project = "All projects"; render(); });
+
+  root.querySelectorAll("[data-open]").forEach(el =>
+    el.onclick = () => {
+      state.selected = Number(el.dataset.open);
+      state.noteDraft = "";
+      state.showNoteInput = false;
+      render();
+    });
+
+  root.querySelectorAll("[data-today-toggle]").forEach(el =>
+    el.onclick = event => {
+      event.stopPropagation();
+      toggleToday(Number(el.dataset.todayToggle));
+    });
+
+  root.querySelectorAll("[data-due-set]").forEach(el =>
+    el.onchange = () => {
+      const id = Number(el.dataset.dueSet);
+      state.tasks = state.tasks.map(t => t.id === id ? { ...t, due: el.value } : t);
+      render();
+    });
+
+  root.querySelectorAll("select[data-owner-set]").forEach(el =>
+    el.onchange = () => {
+      const id = Number(el.dataset.ownerSet);
+      if (el.value === "__add__") {
+        const name = prompt("Name of the person to assign this to:");
+        const added = name ? addPerson(name) : null;
+        if (added) { setOwner(id, added); toast("Assigned to " + added, "good"); } else render();
+        return;
+      }
+      setOwner(id, el.value);
+    });
+
+  root.querySelectorAll("select[data-status-set]").forEach(el =>
+    el.onchange = () => {
+      const id = Number(el.dataset.statusSet);
+      state.tasks = state.tasks.map(t => t.id === id ? { ...t, status: el.value, isNew: false } : t);
+      if (el.value === "Completed") state.selected = null;
+      render();
+    });
+
+  root.querySelectorAll("select[data-priority-set]").forEach(el =>
+    el.onchange = () => {
+      const id = Number(el.dataset.prioritySet);
+      state.tasks = state.tasks.map(t => t.id === id ? { ...t, priority: el.value } : t);
+      render();
+    });
+
+  root.querySelectorAll("button[data-owner-set]").forEach(el =>
+    el.onclick = () => setOwner(Number(el.dataset.ownerSet), el.dataset.ownerValue));
+
+  root.querySelectorAll("select[data-project-set]").forEach(el =>
+    el.onchange = () => {
+      const id = Number(el.dataset.projectSet);
+      if (el.value === "__add__") {
+        const name = prompt("New project name:");
+        if (name && name.trim()) {
+          const clean = name.trim();
+          if (!projects.includes(clean)) projects.push(clean);
+          state.tasks = state.tasks.map(t => t.id === id ? { ...t, project: clean } : t);
+          toast("Moved to " + clean, "good");
+        }
+        render();
+        return;
+      }
+      state.tasks = state.tasks.map(t => t.id === id ? { ...t, project: el.value } : t);
+      render();
+    });
+
+  root.querySelectorAll("[data-project-del]").forEach(el =>
+    el.onclick = () => { projects.splice(Number(el.dataset.projectDel), 1); render(); });
+
+  root.querySelectorAll("[data-person-del]").forEach(el =>
+    el.onclick = () => {
+      const editable = people.filter(p => p.name !== ME && p.name !== "Unassigned");
+      const target = editable[Number(el.dataset.personDel)];
+      if (!target) return;
+      state.tasks = state.tasks.map(t => t.owner === target.name ? { ...t, owner: "Unassigned" } : t);
+      people = people.filter(p => p.name !== target.name);
+      render();
+    });
+
+  root.querySelectorAll("[data-note-del]").forEach(el =>
+    el.onclick = () => deleteNote(Number(el.dataset.id), el.dataset.noteDel));
+
+  root.querySelectorAll("[data-subtask-toggle]").forEach(el =>
+    el.onchange = () => {
+      const id = Number(el.dataset.subtaskToggle);
+      const index = Number(el.dataset.subtaskIndex);
+      state.tasks = state.tasks.map(t => t.id === id
+        ? { ...t, subtasks: (t.subtasks || []).map((s, i) => i === index ? { ...s, done: el.checked } : s) }
+        : t);
+      render();
+    });
+
+  root.querySelectorAll("[data-subtask-checklist-toggle]").forEach(el =>
+    el.onchange = () => {
+      const ref = state.showSubtask;
+      const index = Number(el.dataset.subtaskChecklistToggle);
+      state.tasks = state.tasks.map(t => t.id === ref.taskId
+        ? { ...t, subtasks: (t.subtasks || []).map((s, subIndex) => subIndex === ref.index ? { ...s, checklist: (s.checklist || []).map((item, itemIndex) => itemIndex === index ? { ...item, done: el.checked } : item) } : s) }
+        : t);
+      render();
+    });
+
+  root.querySelectorAll("[data-subtask-drag]").forEach(el => {
+    el.ondragstart = event => {
+      state.draggingSubtask = { taskId: Number(el.dataset.subtaskDrag), index: Number(el.dataset.subtaskIndex) };
+      event.dataTransfer.effectAllowed = "move";
+    };
+    el.ondragover = event => { event.preventDefault(); el.classList.add("drag-over"); };
+    el.ondragleave = () => el.classList.remove("drag-over");
+    el.ondrop = event => {
+      event.preventDefault();
+      el.classList.remove("drag-over");
+      const from = state.draggingSubtask;
+      const taskId = Number(el.dataset.subtaskDrop);
+      const to = Number(el.dataset.subtaskIndex);
+      state.draggingSubtask = null;
+      if (from && from.taskId === taskId) moveSubtask(taskId, from.index, to);
+    };
+  });
+
+  root.querySelectorAll("[data-subtask-open]").forEach(el =>
+    el.onclick = event => {
+      if (event.target.matches("input")) return;
+      state.showSubtask = { taskId: Number(el.dataset.subtaskOpen), index: Number(el.dataset.subtaskIndex) };
+      render();
+    });
+
+  root.querySelectorAll("[data-subtask-note-del]").forEach(el =>
+    el.onclick = () => {
+      const ref = state.showSubtask;
+      state.tasks = state.tasks.map(t => t.id === ref.taskId
+        ? { ...t, subtasks: (t.subtasks || []).map((s, index) => index === ref.index ? { ...s, notes: (s.notes || []).filter(n => n.at !== el.dataset.subtaskNoteDel) } : s) }
+        : t);
+      render();
+    });
+
+  root.querySelectorAll("[data-quote-del]").forEach(el =>
+    el.onclick = () => {
+      const id = Number(el.dataset.id);
+      const i = Number(el.dataset.quoteDel);
+      state.tasks = state.tasks.map(t =>
+        t.id === id ? { ...t, discussion: t.discussion.filter((_, idx) => idx !== i) } : t);
+      render();
+    });
+
+  root.querySelectorAll("[data-parsed]").forEach(el =>
+    el.onchange = () => { state.parsed.actions[Number(el.dataset.parsed)].include = el.checked; });
+
+  root.querySelectorAll("[data-parsed-owner]").forEach(el =>
+    el.onchange = () => { state.parsed.actions[Number(el.dataset.parsedOwner)].owner = el.value; });
+
+  root.querySelectorAll("[data-rich-cmd]").forEach(btn =>
+    btn.onclick = event => {
+      event.preventDefault();
+      const editorId = btn.closest(".rich-toolbar")?.dataset.editor;
+      const editor = editorId ? document.getElementById(editorId) : null;
+      if (!editor) return;
+      editor.focus();
+      document.execCommand(btn.dataset.richCmd, false, null);
+    });
+
+  root.querySelectorAll("[data-rich-color]").forEach(select =>
+    select.onchange = event => {
+      event.preventDefault();
+      const editorId = select.closest(".rich-toolbar")?.dataset.editor;
+      const editor = editorId ? document.getElementById(editorId) : null;
+      if (!editor || !select.value) return;
+      editor.focus();
+      document.execCommand("foreColor", false, select.value);
+      select.value = "";
+    });
+
+  root.querySelectorAll("[data-theme-toggle]").forEach(el =>
+    el.onchange = () => {
+      state.darkMode = el.checked;
+      render();
+    });
+
+  root.querySelectorAll("[data-act]").forEach(el =>
+    el.onclick = event => {
+      const act = el.dataset.act;
+      if (el.classList.contains("overlay") && event.target !== el) return;
+
+      if (act === "open-form") { state.showForm = true; state.formError = ""; }
+      if (act === "toggle-note-input") { state.showNoteInput = !state.showNoteInput; return render(); }
+      if (act === "close-form") { readDraft(); state.showForm = false; }
+      if (act === "open-email") { state.showEmail = true; }
+      if (act === "close-email") { readEmailDraft(); state.showEmail = false; }
+      if (act === "save-email") return saveEmailAction();
+      if (act === "clear-owner") state.ownerFilter = null;
+      if (act === "back") state.selected = null;
+      if (act === "open-upload") { state.showUpload = true; state.parsed = null; }
+      if (act === "close-upload") { state.showUpload = false; state.parsed = null; }
+      if (act === "reset-upload") state.parsed = null;
+      if (act === "import-parsed") return importParsed();
+      if (act === "manage-projects") state.showProjects = true;
+      if (act === "close-projects") state.showProjects = false;
+      if (act === "add-project-row") projects.push("New project");
+      if (act === "save-projects") return saveProjects();
+      if (act === "manage-people") state.showPeople = true;
+      if (act === "close-people") state.showPeople = false;
+      if (act === "open-settings") state.showSettings = true;
+      if (act === "close-settings") state.showSettings = false;
+      if (act === "add-person-row") addPerson("New person");
+      if (act === "save-people") return savePeople();
+      if (act === "add-note") return addNote(Number(el.dataset.id));
+      if (act === "add-subtask") return addSubtask(Number(el.dataset.id));
+      if (act === "add-subtask-checklist") return addSubtaskChecklist();
+      if (act === "add-subtask-note") return addSubtaskNote();
+      if (act === "save-subtask") return saveSubtask();
+      if (act === "close-subtask") state.showSubtask = null;
+      if (act === "edit-task-core") return editTaskCore(Number(el.dataset.id));
+      if (act === "edit-context") state.showContext = Number(el.dataset.id);
+      if (act === "close-context") state.showContext = null;
+      if (act === "save-context") return saveContext(Number(el.dataset.id));
+      if (act === "export-csv") return exportCsv();
+      if (act === "export-json") return exportJson();
+      if (act === "save") return saveTask();
+      render();
+    });
+
+  const search = document.getElementById("search");
+  if (search) search.oninput = () => {
+    state.query = search.value;
+    render();
+    const next = document.getElementById("search");
+    next.focus();
+    next.setSelectionRange(next.value.length, next.value.length);
+  };
+
+  const noteBox = document.getElementById("note-input");
+  if (noteBox) {
+    noteBox.oninput = () => { state.noteDraft = sanitizeRichHtml(noteBox.innerHTML); };
+    noteBox.onkeydown = e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        addNote(state.selected);
+      }
+    };
+  }
+
+  const subtaskNoteBox = document.getElementById("st-note");
+  if (subtaskNoteBox) {
+    subtaskNoteBox.onkeydown = e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        addSubtaskNote();
+      }
+    };
+  }
+
+  const days = document.getElementById("days");
+  if (days) days.onchange = () => { state.days = days.value; render(); };
+
+  const fp = document.getElementById("fproject");
+  if (fp) fp.onchange = () => { state.project = fp.value; render(); };
+
+  const fs = document.getElementById("fsource");
+  if (fs) fs.onchange = () => { state.source = fs.value; render(); };
+
+  const dz = document.getElementById("dropzone");
+  const fi = document.getElementById("file-input");
+  if (dz && fi) {
+    dz.onclick = () => fi.click();
+    dz.ondragover = e => { e.preventDefault(); dz.classList.add("over"); };
+    dz.ondragleave = () => dz.classList.remove("over");
+    dz.ondrop = e => {
+      e.preventDefault();
+      dz.classList.remove("over");
+      if (e.dataTransfer.files[0]) readTranscript(e.dataTransfer.files[0]);
+    };
+    fi.onchange = () => { if (fi.files[0]) readTranscript(fi.files[0]); };
+  }
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (state.showForm || state.showEmail || state.showUpload || state.showProjects || state.showPeople || state.showSettings || state.showSubtask) {
+    state.showForm = state.showEmail = state.showUpload = state.showProjects = state.showPeople = state.showSettings = false;
+    state.showSubtask = null;
+    render();
+  } else if (state.selected) {
+    state.selected = null;
+    render();
+  }
+});
+
+load();
+render();
+if (!state.storageOk) toast("Notes cannot be saved in this browser", "warn");
+</script>
+</body>
+</html>
